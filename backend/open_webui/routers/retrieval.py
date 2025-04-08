@@ -3,6 +3,8 @@ import logging
 import mimetypes
 import os
 import shutil
+import pandas as pd
+
 
 import uuid
 from datetime import datetime
@@ -924,7 +926,7 @@ class ProcessFileForm(BaseModel):
     collection_name: Optional[str] = None
 
 
-@router.post("/process/file")
+@router.post("/process/file-old")
 def process_file(
     request: Request,
     form_data: ProcessFileForm,
@@ -1101,6 +1103,81 @@ def process_file(
                 detail=str(e),
             )
 
+
+
+
+
+@router.post("/process/file")
+def process_csv_file(
+    request: Request,
+    form_data: ProcessFileForm,
+    user=Depends(get_verified_user),
+):
+    try:
+        file = Files.get_file_by_id(form_data.file_id)
+        collection_name = form_data.collection_name
+        if collection_name is None:
+            collection_name = f"file-{file.id}"
+
+        if form_data.content:
+            # Update the content in the file
+            # Usage: /files/{file_id}/data/content/update
+            text_content = form_data.content
+
+        elif form_data.collection_name:
+            # Check if the file has already been processed and save the content
+            # Usage: /knowledge/{id}/file/add, /knowledge/{id}/file/update
+
+            text_content = file.data.get("content", "")
+        else:
+            # Process the file and save the content
+            # Usage: /files/
+            file_path = file.path
+            ## read the csv or excel file and give top 100 rows of df
+            if file_path:
+                file_path = Storage.get_file(file_path)
+                if file.meta.get("content_type") == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                    df = pd.read_excel(file_path, engine="openpyxl")
+                else:
+                    df = pd.read_csv(file_path)
+
+                # Convert the DataFrame to a list of dictionaries
+                docs = [
+                    Document(
+                        page_content=str(row),
+                        metadata={
+                            **file.meta,
+                            "name": file.filename,
+                            "created_by": file.user_id,
+                            "file_id": file.id,
+                            "source": file.filename,
+                        },
+                    )
+                    for _, row in df.iterrows()
+                ]
+            text_content = " ".join([doc.page_content for doc in docs])
+
+        log.debug(f"text_content: {text_content}")
+        Files.update_file_data_by_id(
+            file.id,
+            {"content": text_content},
+        )
+
+        hash = calculate_sha256_string(text_content)
+        Files.update_file_hash_by_id(file.id, hash)
+
+    except Exception as e:
+        log.exception(e)
+        if "No pandoc was found" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ERROR_MESSAGES.PANDOC_NOT_INSTALLED,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
 
 class ProcessTextForm(BaseModel):
     name: str
