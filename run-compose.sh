@@ -223,28 +223,25 @@ fi
 
 echo
 
-if [[ 1 -eq 1 ]]; then
-    # Execute the command with the current user
-    eval "$DEFAULT_COMPOSE_COMMAND" &
+# Execute the command with the current user
+eval "$DEFAULT_COMPOSE_COMMAND" &
 
-    # Capture the background process PID
-    PID=$!
+# Capture the background process PID
+PID=$!
 
-    # Display the loading animation
-    #show_loading $PID
+# Display the loading animation (optional)
+# show_loading $PID
 
-    # Wait for the command to finish
-    wait $PID
+# Wait for the command to finish
+wait $PID
 
-    echo
-    # Check exit status
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}${BOLD}Compose project started successfully.${NC}"
-    else
-        echo -e "${RED}${BOLD}There was an error starting the compose project.${NC}"
-    fi
+echo
+# Check exit status
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}${BOLD}Compose project started successfully.${NC}"
 else
-    echo "Aborted."
+    echo -e "${RED}${BOLD}There was an error starting the compose project.${NC}"
 fi
+
 
 echo
