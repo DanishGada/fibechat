@@ -4,6 +4,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 from urllib.parse import quote
+import pandas as pd
 
 from fastapi import (
     APIRouter,
@@ -32,6 +33,7 @@ from open_webui.routers.audio import transcribe
 from open_webui.storage.provider import Storage
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from pydantic import BaseModel
+
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
@@ -103,17 +105,30 @@ def upload_file(
         name = filename
         print(f"[DEBUG] Original name: {name}")
         filename = f"{id}_{filename}"
-        print(f"filename11111: {filename}")
+        print(f"filename: {filename}")
         print(f"[DEBUG] Full filename with UUID: {filename}")
         
         print(f"[DEBUG] Before Storage.upload_file()")
         contents, file_path = Storage.upload_file(file.file, filename)
-        print(f"file_path11111: {file_path}")
+        print(f"file_path: {file_path}")
         print(f"[DEBUG] After Storage.upload_file()")
         print(f"[DEBUG] File contents length: {len(contents)}")
         print(f"[DEBUG] File path: {file_path}")
 
         print(f"[DEBUG] Creating file_item object")
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        print(f"[DEBUG] file_ext - {file_ext}")
+        if file_ext in [".csv", ".xlsx", ".xls"]:
+            # Read file contents with pandas based on extension
+            if file_ext == ".csv":
+                df = pd.read_csv(file.filename)
+            elif file_ext in [".xlsx", ".xls"]:
+                df = pd.read_excel(file.filename)
+            else:
+                df = ""
+                
+        df_string = df.to_string(index=False)
+        
         file_item = Files.insert_new_file(
             user.id,
             FileForm(
@@ -127,6 +142,7 @@ def upload_file(
                         "size": len(contents),
                         "data": file_metadata,
                     },
+                    "data": df_string
                 }
             ),
         )
