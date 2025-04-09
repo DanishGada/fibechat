@@ -121,9 +121,9 @@ def upload_file(
         if file_ext in [".csv", ".xlsx", ".xls"]:
             # Read file contents with pandas based on extension
             if file_ext == ".csv":
-                df = pd.read_csv(file.filename)
+                df = pd.read_csv(file_path)
             elif file_ext in [".xlsx", ".xls"]:
-                df = pd.read_excel(file.filename)
+                df = pd.read_excel(file_path)
             else:
                 df = ""
                 
