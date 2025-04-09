@@ -223,7 +223,7 @@ fi
 
 echo
 
-if true; then
+if [[ 1 -eq 1 ]]; then
     # Execute the command with the current user
     eval "$DEFAULT_COMPOSE_COMMAND" &
 
