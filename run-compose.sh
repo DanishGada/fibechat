@@ -217,13 +217,13 @@ if [[ $headless == true ]]; then
     choice="y"
 else
     # Ask for user acceptance
-    echo -ne "${WHITE}${BOLD}Do you want to proceed with current setup? (Y/n): ${NC}"
-    read -n1 -s choice
+    # echo -ne "${WHITE}${BOLD}Do you want to proceed with current setup? (Y/n): ${NC}"
+    # read -n1 -s choice
 fi
 
 echo
 
-if [[ $choice == "" || $choice == "y" ]]; then
+if true; then
     # Execute the command with the current user
     eval "$DEFAULT_COMPOSE_COMMAND" &
 
