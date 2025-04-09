@@ -1,21 +1,4 @@
 services:
-  ollama:
-    volumes:
-      - ollama:/root/.ollama
-    container_name: ollama
-    pull_policy: always
-    tty: true
-    restart: unless-stopped
-    image: ollama/ollama:${OLLAMA_DOCKER_TAG-latest}
-    deploy:
-      resources:
-        limits:
-          cpus: '4'    # Increased from 2 to 4 CPUs
-          memory: 8G   # Increased from 4G to 8G RAM
-        reservations:
-          cpus: '2'    # Increased from 1 to 2 CPUs
-          memory: 4G   # Increased from 2G to 4G RAM
-
   open-webui:
     build:
       context: .
@@ -46,5 +29,4 @@ services:
           memory: 2G   # Increased from 1G to 2G RAM
 
 volumes:
-  ollama: {}
   open-webui: {}
