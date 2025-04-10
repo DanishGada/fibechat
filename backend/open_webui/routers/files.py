@@ -128,7 +128,6 @@ def upload_file(
                 df = ""
                 
         df_string = df.to_string(index=False)
-        print(f"[DEBUG] df_string= ",df_string)
         
         file_item = Files.insert_new_file(
             user.id,
