@@ -244,7 +244,7 @@
 	};
 
 	const chatEventHandler = async (event, cb) => {
-		console.log(event);
+		// console.log(event);
 
 		if (event.chat_id === $chatId) {
 			await tick();
@@ -1216,7 +1216,7 @@
 			);
 		}
 
-		console.log(data);
+		// console.log(data);
 		if (autoScroll) {
 			scrollToBottom();
 		}
@@ -2047,7 +2047,7 @@
 								{stopResponse}
 								{createMessagePair}
 								onChange={(input) => {
-									console.log("[TEXT] Input changed input= ", input," chatId= ", $chatId);
+									console.log("[TEXT] Input changed input= ", input,"chatId= ", $chatId);
 									if (input.prompt) {
 										localStorage.setItem(`chat-input-${$chatId}`, JSON.stringify(input));
 									} else {
