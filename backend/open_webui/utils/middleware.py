@@ -936,6 +936,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 # print(f"[DIAG] source['document']: {source['document']}")
                 context_string+=f"<source><source_id>{1}</source_id><source_truncated_context>{truncated_content}</source_id><source_truncated_context>"
                 context_string+= "to analyse all the contents of the file you will have to write code to read the contents of the file. The actual file is accesible to you using the path " + file_id +"_"+ filename
+                context_string+= "<instructions>Always write full python code including imports, df read commands, and any other necessary code to read the file. Do not just snippet of code.</instructions>"
 
                 # for doc_idx, doc_context in enumerate(source["document"]):
                 #     context_string += f"<source><source_id>{source_idx + 1}</source_id><source_context>{doc_context}</source_id><source_context>"
