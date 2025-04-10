@@ -598,7 +598,7 @@ async def generate_chat_completion(
     idx = 0
 
     payload = {**form_data}
-    print(f"[LLM PAYLOAD] Payload content before sending: {payload}")
+    # print(f"[LLM PAYLOAD] Payload content before sending: {payload}")
     metadata = payload.pop("metadata", None)
 
     model_id = form_data.get("model")
@@ -689,7 +689,7 @@ async def generate_chat_completion(
     total_chars = sum(len(m.get('content', '')) for m in payload.get('messages', []))
     print(f"[DIAG] Total characters in messages sent to LLM: {total_chars}")
 
-    print(f"[LLM PAYLOAD] Payload content before sending: {payload}")
+    # print(f"[LLM PAYLOAD] Payload content before sending: {payload}")
     payload = json.dumps(payload)
 
     r = None
@@ -748,7 +748,7 @@ async def generate_chat_completion(
                 log.error(e)
                 response = await r.text()
 
-            print(f"[LLM RESPONSE] Status: {r.status}, Response: {response}")
+            # print(f"[LLM RESPONSE] Status: {r.status}, Response: {response}")
             r.raise_for_status()
             return response
     except Exception as e:

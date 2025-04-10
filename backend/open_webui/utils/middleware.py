@@ -903,7 +903,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     print("HEREEEEEEEE")
     if len(sources) > 0:
         context_string = ""
-        print(f"[DIAG] All sources: {sources}")
+        # print(f"[DIAG] All sources: {sources}")
         for source_idx, source in enumerate(sources):
             if "document" in source:
                 for doc_idx, doc_context in enumerate(source["document"]):
@@ -933,9 +933,9 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                                 source['document'][doc_idx] = truncated_content
                             except Exception as e:
                                 print(f"[DIAG] Error truncating embedded content for {filename}: {str(e)}")
-                print(f"[DIAG] source['document']: {source['document']}")
+                # print(f"[DIAG] source['document']: {source['document']}")
                 context_string+=f"<source><source_id>{1}</source_id><source_truncated_context>{truncated_content}</source_id><source_truncated_context>"
-                context_string+= "to analyse all the contents of the file you will have to write code to read the contents of the file. The actual file is accesible to you using the path /app/backend/data/uploads/" + file_id +"_"+ filename
+                context_string+= "to analyse all the contents of the file you will have to write code to read the contents of the file. The actual file is accesible to you using the path /var/lib/docker/volumes/open-webui/_data" + file_id +"_"+ filename
 
                 # for doc_idx, doc_context in enumerate(source["document"]):
                 #     context_string += f"<source><source_id>{source_idx + 1}</source_id><source_context>{doc_context}</source_id><source_context>"
