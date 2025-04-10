@@ -5,6 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import BinaryIO, Tuple
 
+import time
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -25,6 +26,8 @@ from open_webui.config import (
     STORAGE_PROVIDER,
     UPLOAD_DIR,
 )
+import logging
+import os
 from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError, NotFound
 from open_webui.constants import ERROR_MESSAGES
@@ -59,14 +62,53 @@ class StorageProvider(ABC):
 class LocalStorageProvider(StorageProvider):
     @staticmethod
     def upload_file(file: BinaryIO, filename: str) -> Tuple[bytes, str]:
+        total_start = time.time()
+        print(f"[UPLOAD] Starting upload process for {filename}")
+        
+        # Read file contents with timing
+        read_start = time.time()
+        print(f"[UPLOAD] Beginning to read file {filename}")
         contents = file.read()
+        read_time = time.time() - read_start
+        print(f"[UPLOAD] File read completed in {read_time:.6f} seconds")
+        
+        # Check if file is empty
+        size_check_start = time.time()
         if not contents:
+            print(f"[UPLOAD] Empty file detected: {filename}")
             raise ValueError(ERROR_MESSAGES.EMPTY_CONTENT)
+        file_size = len(contents)
+        size_check_time = time.time() - size_check_start
+        print(f"[UPLOAD] Size check completed in {size_check_time:.6f} seconds. File size: {file_size} bytes")
+        
+        # Determine file path
+        path_start = time.time()
         file_path = f"{UPLOAD_DIR}/{filename}"
-        with open(file_path, "wb") as f:
-            f.write(contents)
+        
+        # Create directory if needed
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        path_time = time.time() - path_start
+        print(f"[UPLOAD] Path preparation completed in {path_time:.6f} seconds")
+        
+        # Write file contents with timing
+        write_start = time.time()
+        print(f"[UPLOAD] Beginning to write file to {file_path}")
+        with open(file_path, "wb") as f_out:
+            f_out.write(contents)
+        write_time = time.time() - write_start
+        print(f"[UPLOAD] File write completed in {write_time:.6f} seconds")
+        
+        # Calculate total time and write summary
+        total_time = time.time() - total_start
+        print(f"[UPLOAD] Upload process completed in {total_time:.6f} seconds")
+        print(f"[UPLOAD] Performance breakdown: Read: {read_time:.6f}s ({read_time/total_time*100:.2f}%), "
+                    f"Size check: {size_check_time:.6f}s ({size_check_time/total_time*100:.2f}%), "
+                    f"Path: {path_time:.6f}s ({path_time/total_time*100:.2f}%), "
+                    f"Write: {write_time:.6f}s ({write_time/total_time*100:.2f}%)")
+        print(f"[UPLOAD] Throughput: {file_size/total_time/1024/1024:.2f} MB/s")
+        
         return contents, file_path
-
+    
     @staticmethod
     def get_file(file_path: str) -> str:
         """Handles downloading of the file from local storage."""

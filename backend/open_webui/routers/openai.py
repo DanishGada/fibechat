@@ -598,6 +598,7 @@ async def generate_chat_completion(
     idx = 0
 
     payload = {**form_data}
+    print(f"[LLM PAYLOAD] Payload content before sending: {payload}")
     metadata = payload.pop("metadata", None)
 
     model_id = form_data.get("model")
@@ -684,7 +685,11 @@ async def generate_chat_completion(
         payload["logit_bias"] = json.loads(
             convert_logit_bias_input_to_json(payload["logit_bias"])
         )
+    # Always append file info message
+    total_chars = sum(len(m.get('content', '')) for m in payload.get('messages', []))
+    print(f"[DIAG] Total characters in messages sent to LLM: {total_chars}")
 
+    print(f"[LLM PAYLOAD] Payload content before sending: {payload}")
     payload = json.dumps(payload)
 
     r = None
@@ -743,6 +748,7 @@ async def generate_chat_completion(
                 log.error(e)
                 response = await r.text()
 
+            print(f"[LLM RESPONSE] Status: {r.status}, Response: {response}")
             r.raise_for_status()
             return response
     except Exception as e:
@@ -773,6 +779,7 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
     """
 
     body = await request.body()
+    print(f"[PROXY REQUEST] Path: {path}, Method: {request.method}, Body: {body}")
 
     idx = 0
     url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
@@ -818,6 +825,7 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
             )
         else:
             response_data = await r.json()
+            print(f"[PROXY RESPONSE] Path: {path}, Status: {r.status}, Response: {response_data}")
             return response_data
 
     except Exception as e:
