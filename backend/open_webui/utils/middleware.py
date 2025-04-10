@@ -553,6 +553,46 @@ async def chat_completion_files_handler(
     sources = []
 
     if files := body.get("metadata", {}).get("files", None):
+        for file in files:
+            filename = file.get('filename') or file.get('name')
+            content_type = file.get('meta', {}).get('content_type', '')
+            log.debug(f"[DIAG] Processing file: {filename}, content_type: {content_type}")
+
+            # Check if CSV or Excel by MIME type or filename extension
+            is_csv = (
+                content_type == 'text/csv' or (filename and filename.lower().endswith('.csv'))
+            )
+            is_xlsx = (
+                content_type in [
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/vnd.ms-excel'
+                ] or (filename and (filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls')))
+            )
+
+            if is_csv or is_xlsx:
+                try:
+                    file_path = file.get('path')
+                    if not file_path:
+                        log.debug(f"[DIAG] No file path found for {filename}, skipping truncation")
+                        continue
+
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = []
+                        for _ in range(5):
+                            line = f.readline()
+                            if not line:
+                                break
+                            lines.append(line)
+
+                    truncated_content = ''.join(lines)
+                    log.debug(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
+                    print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
+
+                    # Store truncated content back into the file dict for downstream use
+                    file['truncated_content'] = truncated_content
+
+                except Exception as e:
+                    log.debug(f"[DIAG] Error truncating file {filename}: {str(e)}")
         queries = []
         try:
             queries_response = await generate_queries(
@@ -860,12 +900,45 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         log.exception(e)
 
     # If context is not empty, insert it into the messages
+    print("HEREEEEEEEE")
     if len(sources) > 0:
         context_string = ""
+        print(f"[DIAG] All sources: {sources}")
         for source_idx, source in enumerate(sources):
             if "document" in source:
                 for doc_idx, doc_context in enumerate(source["document"]):
-                    context_string += f"<source><source_id>{source_idx + 1}</source_id><source_context>{doc_context}</source_context></source>\n"
+                    # Truncate CSV/XLSX content in source_context only
+                    filename = source.get('source', {}).get('name') or source.get('source', {}).get('file', {}).get('filename') or ''
+                    content_type = source.get('source', {}).get('file', {}).get('meta', {}).get('content_type', '')
+                    file_id = source.get('source', {}).get('file', {}).get('id') or source.get('source', {}).get('id')
+                    print(f"[DIAG] Processing file: {filename}, content_type: {content_type}, file_id: {file_id}")
+                    is_csv = (
+                        content_type == 'text/csv' or (filename and filename.lower().endswith('.csv'))
+                    )
+                    is_xlsx = (
+                        content_type in [
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            'application/vnd.ms-excel'
+                        ] or (filename and (filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls')))
+                    )
+                    if is_csv or is_xlsx or True:
+                        if is_csv or is_xlsx:
+                            print(f"[DIAG] Attempting truncation for file: {filename}")
+                            try:
+                                original_content = source['document'][doc_idx]
+                                lines = original_content.splitlines(keepends=True)[:5]
+                                truncated_content = ''.join(lines)
+                                print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
+                                print(f"[DIAG] Truncated content preview for {filename}: {truncated_content[:200]}")
+                                source['document'][doc_idx] = truncated_content
+                            except Exception as e:
+                                print(f"[DIAG] Error truncating embedded content for {filename}: {str(e)}")
+                print(f"[DIAG] source['document']: {source['document']}")
+                context_string+=f"<source><source_id>{1}</source_id><source_truncated_context>{truncated_content}</source_id><source_truncated_context>"
+                context_string+= "to analyse all the contents of the file you will have to write code to read the contents of the file. The actual file is accesible to you using the path /app/backend/data/uploads/" + file_id +"_"+ filename
+
+                # for doc_idx, doc_context in enumerate(source["document"]):
+                #     context_string += f"<source><source_id>{source_idx + 1}</source_id><source_context>{doc_context}</source_id><source_context>"
 
         context_string = context_string.strip()
         prompt = get_last_user_message(form_data["messages"])

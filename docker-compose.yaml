@@ -9,6 +9,7 @@ services:
     container_name: open-webui
     volumes:
       - open-webui:/app/backend/data
+      - ./backend:/app/backend
     depends_on:
       - ollama
     ports:
@@ -16,17 +17,18 @@ services:
     environment:
       - 'OLLAMA_BASE_URL=http://ollama:11434'
       - 'WEBUI_SECRET_KEY='
+      - 'UVICORN_RELOAD=true'
     extra_hosts:
       - host.docker.internal:host-gateway
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          cpus: '2'    # Increased from 1 to 2 CPUs
-          memory: 4G   # Increased from 2G to 4G RAM
+          cpus: '2'
+          memory: 4G
         reservations:
-          cpus: '1'    # Increased from 0.5 to 1 CPU
-          memory: 2G   # Increased from 1G to 2G RAM
+          cpus: '1'
+          memory: 2G
 
 volumes:
   open-webui: {}

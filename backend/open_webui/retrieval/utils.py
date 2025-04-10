@@ -409,6 +409,9 @@ def get_sources_from_files(
     relevant_contexts = []
 
     for file in files:
+        if 'truncated_content' in file:
+            log.debug(f"[DIAG] Using truncated content for file: {file.get('filename') or file.get('name')}")
+            file['file'] = {'data': {'content': file['truncated_content']}}
 
         context = None
         if file.get("docs"):
