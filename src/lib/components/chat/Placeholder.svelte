@@ -202,7 +202,7 @@
 					{transparentBackground}
 					{stopResponse}
 					{createMessagePair}
-					placeholder={$i18n.t('How can I help you today?')}
+					placeholder={$i18n.t('Fibe user, How can I help you today?')}
 					on:upload={(e) => {
 						dispatch('upload', e.detail);
 					}}
