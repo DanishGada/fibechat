@@ -1064,7 +1064,7 @@ async def chat_completion(
             "session_id": form_data.pop("session_id", None),
             "tool_ids": form_data.get("tool_ids", None),
             "tool_servers": form_data.pop("tool_servers", None),
-            "files": form_data.get("files", None),
+            "files": None,
             "features": form_data.get("features", None),
             "variables": form_data.get("variables", None),
             "model": model,

@@ -106,9 +106,9 @@ class ChatTitleIdResponse(BaseModel):
 
 class ChatTable:
     def insert_new_chat(self, user_id: str, form_data: ChatForm) -> Optional[ChatModel]:
+        print("insert_new_chat()")
         with get_db() as db:
             id = str(uuid.uuid4())
-            form_data.pop("files")
             chat = ChatModel(
                 **{
                     "id": id,
@@ -123,8 +123,11 @@ class ChatTable:
                     "updated_at": int(time.time()),
                 }
             )
+            print(chat)
 
             result = Chat(**chat.model_dump())
+            print("result")
+            print(result)
             db.add(result)
             db.commit()
             db.refresh(result)

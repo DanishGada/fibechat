@@ -442,6 +442,7 @@ export const getChatListByTagName = async (token: string = '', tagName: string) 
 
 export const getChatById = async (token: string, id: string) => {
 	let error = null;
+	console.log("getChatById(): ", id);
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/chats/${id}`, {
 		method: 'GET',

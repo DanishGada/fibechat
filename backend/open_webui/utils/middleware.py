@@ -859,7 +859,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 **extra_params,
                 "__model__": models[task_model_id],
                 "__messages__": form_data["messages"],
-                "__files__": metadata.get("files", []),
+                "__files__": [],
             },
         )
 
