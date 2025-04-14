@@ -108,6 +108,7 @@ class ChatTable:
     def insert_new_chat(self, user_id: str, form_data: ChatForm) -> Optional[ChatModel]:
         with get_db() as db:
             id = str(uuid.uuid4())
+            form_data.pop("files")
             chat = ChatModel(
                 **{
                     "id": id,
