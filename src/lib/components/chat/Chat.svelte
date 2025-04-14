@@ -2049,7 +2049,7 @@
 								onChange={(input) => {
 									console.log("[TEXT] Input changed input= ", input,"chatId= ", $chatId);
 									if (input.prompt) {
-										localStorage.setItem(`chat-input-${$chatId}`, JSON.stringify(input));
+										// localStorage.setItem(`chat-input-${$chatId}`, JSON.stringify(input));
 									} else {
 										localStorage.removeItem(`chat-input-${$chatId}`);
 									}
