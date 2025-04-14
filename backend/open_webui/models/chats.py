@@ -489,9 +489,45 @@ class ChatTable:
             return None
 
     def get_chat_by_id_and_user_id(self, id: str, user_id: str) -> Optional[ChatModel]:
+        print("CUSTOM: get_chat_by_id_and_user_id")
         try:
             with get_db() as db:
                 chat = db.query(Chat).filter_by(id=id, user_id=user_id).first()
+                if chat:
+                    # Remove file content data to reduce payload size
+                    chat_dict = chat.__dict__.copy()
+                    chat_data = chat_dict.get('chat', {})
+                    
+                    # Clean files array at the top level
+                    if 'files' in chat_data:
+                        for file_obj in chat_data['files']:
+                            if 'file' in file_obj and 'data' in file_obj['file']:
+                                # Either remove content completely:
+                                file_obj['file']['data'] = {}
+                                # Or keep a placeholder:
+                                # file_obj['file']['data'] = {'content': '[CONTENT REMOVED]'}
+                    
+                    # Clean files in messages
+                    if 'messages' in chat_data:
+                        for msg in chat_data['messages']:
+                            if 'files' in msg:
+                                for file_obj in msg['files']:
+                                    if 'file' in file_obj and 'data' in file_obj['file']:
+                                        # Remove file content
+                                        file_obj['file']['data'] = {}
+                    
+                    # Clean files in history.messages
+                    if 'history' in chat_data and 'messages' in chat_data['history']:
+                        for msg_id, msg in chat_data['history']['messages'].items():
+                            if 'files' in msg:
+                                for file_obj in msg['files']:
+                                    if 'file' in file_obj and 'data' in file_obj['file']:
+                                        # Remove file content
+                                        file_obj['file']['data'] = {}
+                    
+                    # Update the chat object with cleaned data
+                    chat.chat = chat_data
+                    
                 return ChatModel.model_validate(chat)
         except Exception:
             return None
