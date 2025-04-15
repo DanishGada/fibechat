@@ -583,13 +583,12 @@ async def chat_completion_files_handler(
                             if not line:
                                 break
                             lines.append(line)
+                        truncated_content = ''.join(lines)
+                        log.debug(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
+                        print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
 
-                    truncated_content = ''.join(lines)
-                    log.debug(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
-                    print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
-
-                    # Store truncated content back into the file dict for downstream use
-                    file['truncated_content'] = truncated_content
+                        # Store truncated content back into the file dict for downstream use
+                        file['truncated_content'] = truncated_content
 
                 except Exception as e:
                     log.debug(f"[DIAG] Error truncating file {filename}: {str(e)}")
@@ -921,7 +920,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                             'application/vnd.ms-excel'
                         ] or (filename and (filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls')))
                     )
-                    if is_csv or is_xlsx or True:
+                    if is_csv or is_xlsx:
                         if is_csv or is_xlsx:
                             print(f"[DIAG] Attempting truncation for file: {filename}")
                             try:
@@ -2238,13 +2237,6 @@ async def process_chat_response(
                                 "url": f"{request.app.state.config.WEBUI_URL}/c/{metadata['chat_id']}",
                             },
                         )
-
-                await event_emitter(
-                    {
-                        "type": "chat:completion",
-                        "data": data,
-                    }
-                )
 
                 await background_tasks_handler()
             except asyncio.CancelledError:
