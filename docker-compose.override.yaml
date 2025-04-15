@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app/backend
+    command: bash -c "cd backend && bash start.sh"
+    environment:
+      - UVICORN_RELOAD=true
+      - UVICORN_RELOAD_DIRS=/app/backend
