@@ -907,11 +907,15 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         for source_idx, source in enumerate(sources):
             if "document" in source:
                 for doc_idx, doc_context in enumerate(source["document"]):
+                    # Initialize truncated_content for each document to avoid undefined variable error
+                    truncated_content = doc_context
+                    
                     # Truncate CSV/XLSX content in source_context only
                     filename = source.get('source', {}).get('name') or source.get('source', {}).get('file', {}).get('filename') or ''
                     content_type = source.get('source', {}).get('file', {}).get('meta', {}).get('content_type', '')
                     file_id = source.get('source', {}).get('file', {}).get('id') or source.get('source', {}).get('id')
                     print(f"[DIAG] Processing file: {filename}, content_type: {content_type}, file_id: {file_id}")
+                    
                     is_csv = (
                         content_type == 'text/csv' or (filename and filename.lower().endswith('.csv'))
                     )
@@ -921,27 +925,37 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                             'application/vnd.ms-excel'
                         ] or (filename and (filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls')))
                     )
+                    
                     if is_csv or is_xlsx:
-                        if is_csv or is_xlsx:
-                            print(f"[DIAG] Attempting truncation for file: {filename}")
-                            try:
-                                original_content = source['document'][doc_idx]
-                                lines = original_content.splitlines(keepends=True)[:5]
-                                truncated_content = ''.join(lines)
-                                print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
-                                print(f"[DIAG] Truncated content preview for {filename}: {truncated_content[:200]}")
-                                source['document'][doc_idx] = truncated_content
-                            except Exception as e:
-                                print(f"[DIAG] Error truncating embedded content for {filename}: {str(e)}")
-                # print(f"[DIAG] source['document']: {source['document']}")
-                context_string+=f"<source><source_id>{1}</source_id><source_truncated_context>{truncated_content}</source_id><source_truncated_context>"
-                context_string+= "to analyse all the contents of the file you will have to write code to read the contents of the file. The actual file is accesible to you using the path " + file_id +"_"+ filename
-                context_string+= "<instructions>Always write full python code including imports, df read commands, and any other necessary code to read the file. Do not just snippet of code.</instructions>"
-
-                # for doc_idx, doc_context in enumerate(source["document"]):
-                #     context_string += f"<source><source_id>{source_idx + 1}</source_id><source_context>{doc_context}</source_id><source_context>"
+                        print(f"[DIAG] Attempting truncation for file: {filename}")
+                        try:
+                            original_content = source['document'][doc_idx]
+                            print(f"[DIAG] Original content length: {len(original_content)}")
+                            lines = original_content.splitlines(keepends=True)[:5]
+                            truncated_content = ''.join(lines)
+                            source['document'][doc_idx] = truncated_content
+                            print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
+                            print(f"[DIAG] Truncated content preview for {filename}: {truncated_content[:200]}")
+                        except Exception as e:
+                            print(f"[DIAG] Error truncating embedded content for {filename}: {str(e)}")
+                            # Keep the original content if truncation fails
+                            truncated_content = doc_context
+                            print(f"[DIAG] Using original content with length: {len(truncated_content)}")
+                
+                # Add to context string with proper error handling
+                try:
+                    print(f"[DIAG] Building context string for {filename}")
+                    context_string+=f"<source><source_id>{source_idx + 1}</source_id><source_truncated_context>{truncated_content}</source_id><source_truncated_context>"
+                    if file_id and filename and (is_csv or is_xlsx):
+                        context_string+= f" to analyse all the contents of the file you will have to write code to read the contents of the file. The actual file is accessible to you using the path {file_id}_{filename}"
+                        context_string+= "<instructions>Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
+                        print(f"[DIAG] Added file access instructions for {filename}")
+                except Exception as e:
+                    print(f"[DIAG] Error building context string: {str(e)}")
+                    log.exception(f"Error building context string for file {filename}")
 
         context_string = context_string.strip()
+        print(f"[DIAG] Final context string length: {len(context_string)}")
         prompt = get_last_user_message(form_data["messages"])
 
         if prompt is None:
@@ -957,6 +971,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         # Workaround for Ollama 2.0+ system prompt issue
         # TODO: replace with add_or_update_system_message
         if model.get("owned_by") == "ollama":
+            print("[DIAG] Using Ollama workaround for system prompt")
             form_data["messages"] = prepend_to_first_user_message_content(
                 rag_template(
                     request.app.state.config.RAG_TEMPLATE, context_string, prompt
@@ -964,6 +979,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 form_data["messages"],
             )
         else:
+            print("[DIAG] Adding context as system message")
             form_data["messages"] = add_or_update_system_message(
                 rag_template(
                     request.app.state.config.RAG_TEMPLATE, context_string, prompt
