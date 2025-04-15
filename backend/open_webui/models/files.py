@@ -109,12 +109,17 @@ class FilesTable:
                 }
             )
             ## add safety check for empty content
-            if file['data'] is None:
-                file['data'] = {}
-            if file['data'].get('content') is None:
-                file['data']['content'] = ""
-                
-            print("CLEAN file: ",file)
+            # Add safety check for empty content
+            try:
+                if file.data is None:
+                    file.data = {}
+
+                if file.data.get('content') is None:
+                    file.data['content'] = ""
+                print("CLEAN file:", file)
+            except Exception as e:
+                log.exception(f"Error cleaning file data: {e}")
+                return None
 
             try:
                 result = File(**file.model_dump())
