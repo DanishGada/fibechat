@@ -353,7 +353,6 @@ def parse_duration(duration: str) -> Optional[timedelta]:
 
 
 def parse_ollama_modelfile(model_text):
-    print(f"[MODEL INIT] Parsing Ollama modelfile")
     parameters_meta = {
         "mirostat": int,
         "mirostat_eta": float,
@@ -385,15 +384,14 @@ def parse_ollama_modelfile(model_text):
     }
 
     data = {"base_model_id": None, "params": {}}
-    
+
     # Parse base model
     base_model_match = re.search(
         r"^FROM\s+(\w+)", model_text, re.MULTILINE | re.IGNORECASE
     )
     if base_model_match:
         data["base_model_id"] = base_model_match.group(1)
-        print(f"[MODEL INIT] Found base model: {data['base_model_id']}")
-    
+
     # Parse template
     template_match = re.search(
         r'TEMPLATE\s+"""(.+?)"""', model_text, re.DOTALL | re.IGNORECASE
@@ -452,7 +450,6 @@ def parse_ollama_modelfile(model_text):
     if messages:
         data["params"]["messages"] = messages
 
-    print(f"[MODEL INIT] Modelfile parsing complete, params: {list(data['params'].keys())}")
     return data
 
 

@@ -152,7 +152,6 @@
 
 	const pullModelHandler = async () => {
 		const sanitizedModelTag = searchValue.trim().replace(/^ollama\s+(run|pull)\s+/, '');
-		console.log(`[MODEL INIT] Attempting to pull model: ${sanitizedModelTag}`);
 
 		console.log($MODEL_DOWNLOAD_POOL);
 		if ($MODEL_DOWNLOAD_POOL[sanitizedModelTag]) {
@@ -173,13 +172,11 @@
 		const [res, controller] = await pullModel(localStorage.token, sanitizedModelTag, '0').catch(
 			(error) => {
 				toast.error(`${error}`);
-				console.error(`[MODEL INIT] Error initiating model pull: ${error}`);
 				return null;
 			}
 		);
 
 		if (res) {
-			console.log(`[MODEL INIT] Pull started for model: ${sanitizedModelTag}`);
 			const reader = res.body
 				.pipeThrough(new TextDecoderStream())
 				.pipeThrough(splitStream('\n'))
@@ -194,7 +191,6 @@
 					done: false
 				}
 			});
-            console.log(`[MODEL INIT] Model added to download pool: ${sanitizedModelTag}`);
 
 			while (true) {
 				try {
@@ -263,7 +259,6 @@
 						modelName: sanitizedModelTag
 					})
 				);
-                console.log(`[MODEL INIT] Model successfully downloaded: ${sanitizedModelTag}`);
 
 				models.set(
 					await getModels(
@@ -273,7 +268,6 @@
 				);
 			} else {
 				toast.error($i18n.t('Download canceled'));
-                console.log(`[MODEL INIT] Model download canceled: ${sanitizedModelTag}`);
 			}
 
 			delete $MODEL_DOWNLOAD_POOL[sanitizedModelTag];

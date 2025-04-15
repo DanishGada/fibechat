@@ -57,19 +57,16 @@
 	};
 
 	const init = async () => {
-		console.log(`[MODEL INIT] Initializing models configuration modal`);
 		config = await getModelsConfig(localStorage.token);
 
 		if (config?.DEFAULT_MODELS) {
 			defaultModelIds = (config?.DEFAULT_MODELS).split(',').filter((id) => id);
-            console.log(`[MODEL INIT] Loaded default model IDs: ${defaultModelIds.join(', ')}`);
 		} else {
 			defaultModelIds = [];
-            console.log(`[MODEL INIT] No default models configured`);
 		}
 		const modelOrderList = config.MODEL_ORDER_LIST || [];
 		const allModelIds = $models.map((model) => model.id);
-        
+
 		// Create a Set for quick lookup of ordered IDs
 		const orderedSet = new Set(modelOrderList);
 
@@ -82,12 +79,9 @@
 
 		sortKey = '';
 		sortOrder = '';
-        console.log(`[MODEL INIT] Model order initialized with ${modelIds.length} models`);
 	};
-	
 	const submitHandler = async () => {
 		loading = true;
-        console.log(`[MODEL INIT] Saving models configuration: ${defaultModelIds.length} default models, ${modelIds.length} ordered models`);
 
 		const res = await setModelsConfig(localStorage.token, {
 			DEFAULT_MODELS: defaultModelIds.join(','),
@@ -95,12 +89,10 @@
 		});
 
 		if (res) {
-            console.log(`[MODEL INIT] Models configuration saved successfully`);
 			toast.success($i18n.t('Models configuration saved successfully'));
 			initHandler();
 			show = false;
 		} else {
-            console.error(`[MODEL INIT] Failed to save models configuration`);
 			toast.error($i18n.t('Failed to save models configuration'));
 		}
 

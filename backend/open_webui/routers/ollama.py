@@ -637,19 +637,15 @@ async def create_model(
     url_idx: int = 0,
     user=Depends(get_admin_user),
 ):
-    print(f"[MODEL INIT] Creating Ollama model with data: {form_data}")
     log.debug(f"form_data: {form_data}")
     url = request.app.state.config.OLLAMA_BASE_URLS[url_idx]
-    print(f"[MODEL INIT] Using Ollama URL: {url}")
 
-    response = await send_post_request(
+    return await send_post_request(
         url=f"{url}/api/create",
         payload=form_data.model_dump_json(exclude_none=True).encode(),
         key=get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS),
         user=user,
     )
-    print(f"[MODEL INIT] Model creation response received: {response is not None}")
-    return response
 
 
 class CopyModelForm(BaseModel):
