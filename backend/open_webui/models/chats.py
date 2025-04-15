@@ -107,6 +107,15 @@ class ChatTitleIdResponse(BaseModel):
 class ChatTable:
     def insert_new_chat(self, user_id: str, form_data: ChatForm) -> Optional[ChatModel]:
         print("insert_new_chat()")
+        print("form_data.chat: ",form_data.chat)
+        try:
+            # pop the files from form_data.chat
+            files = form_data.chat.pop("files", None)
+        except Exception as e:
+            print("Error popping files: ", e)
+            files = None
+        print("files: ", files)
+        print("form_data.chat: ", form_data.chat)
         with get_db() as db:
             id = str(uuid.uuid4())
             chat = ChatModel(
