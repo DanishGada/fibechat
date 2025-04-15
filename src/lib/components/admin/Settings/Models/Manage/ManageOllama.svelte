@@ -126,130 +126,124 @@
 	};
 
 	const pullModelHandler = async () => {
-		const sanitizedModelTag = modelTag.trim().replace(/^ollama\s+(run|pull)\s+/, '');
-		console.log($MODEL_DOWNLOAD_POOL);
-		if ($MODEL_DOWNLOAD_POOL[sanitizedModelTag]) {
-			toast.error(
-				$i18n.t(`Model '{{modelTag}}' is already in queue for downloading.`, {
-					modelTag: sanitizedModelTag
-				})
-			);
-			return;
-		}
-		if (Object.keys($MODEL_DOWNLOAD_POOL).length === MAX_PARALLEL_DOWNLOADS) {
-			toast.error(
-				$i18n.t('Maximum of 3 models can be downloaded simultaneously. Please try again later.')
-			);
-			return;
-		}
+		updateModelTag = modelTag;
+		updateProgress = 0.1;
+		modelTransferring = true;
+		console.log(`[MODEL INIT] Starting model pull for: ${modelTag}`);
 
-		const [res, controller] = await pullModel(localStorage.token, sanitizedModelTag, urlIdx).catch(
-			(error) => {
-				toast.error(`${error}`);
-				return null;
-			}
-		);
-
-		if (res) {
-			const reader = res.body
-				.pipeThrough(new TextDecoderStream())
-				.pipeThrough(splitStream('\n'))
-				.getReader();
-
-			MODEL_DOWNLOAD_POOL.set({
-				...$MODEL_DOWNLOAD_POOL,
-				[sanitizedModelTag]: {
-					...$MODEL_DOWNLOAD_POOL[sanitizedModelTag],
-					abortController: controller,
-					reader,
-					done: false
+		try {
+			const [res, controller] = await pullModel(localStorage.token, modelTag, urlIdx).catch(
+				(error) => {
+					toast.error(`${error}`);
+					console.error(`[MODEL INIT] Error pulling model ${modelTag}: ${error}`);
+					return null;
 				}
-			});
+			);
 
-			while (true) {
-				try {
-					const { value, done } = await reader.read();
-					if (done) break;
+			if (res) {
+				console.log(`[MODEL INIT] Pull request initiated for model: ${modelTag}`);
+				const reader = res.body
+					.pipeThrough(new TextDecoderStream())
+					.pipeThrough(splitStream('\n'))
+					.getReader();
 
-					let lines = value.split('\n');
+				MODEL_DOWNLOAD_POOL.set({
+					...$MODEL_DOWNLOAD_POOL,
+					[modelTag]: {
+						...$MODEL_DOWNLOAD_POOL[modelTag],
+						abortController: controller,
+						reader,
+						done: false
+					}
+				});
 
-					for (const line of lines) {
-						if (line !== '') {
-							let data = JSON.parse(line);
-							console.log(data);
-							if (data.error) {
-								throw data.error;
-							}
-							if (data.detail) {
-								throw data.detail;
-							}
+				while (true) {
+					try {
+						const { value, done } = await reader.read();
+						if (done) break;
 
-							if (data.status) {
-								if (data.digest) {
-									let downloadProgress = 0;
-									if (data.completed) {
-										downloadProgress = Math.round((data.completed / data.total) * 1000) / 10;
+						let lines = value.split('\n');
+
+						for (const line of lines) {
+							if (line !== '') {
+								let data = JSON.parse(line);
+								console.log(data);
+								if (data.error) {
+									throw data.error;
+								}
+								if (data.detail) {
+									throw data.detail;
+								}
+
+								if (data.status) {
+									if (data.digest) {
+										let downloadProgress = 0;
+										if (data.completed) {
+											downloadProgress = Math.round((data.completed / data.total) * 1000) / 10;
+										} else {
+											downloadProgress = 100;
+										}
+
+										MODEL_DOWNLOAD_POOL.set({
+											...$MODEL_DOWNLOAD_POOL,
+											[modelTag]: {
+												...$MODEL_DOWNLOAD_POOL[modelTag],
+												pullProgress: downloadProgress,
+												digest: data.digest
+											}
+										});
 									} else {
-										downloadProgress = 100;
+										toast.success(data.status);
+
+										MODEL_DOWNLOAD_POOL.set({
+											...$MODEL_DOWNLOAD_POOL,
+											[modelTag]: {
+												...$MODEL_DOWNLOAD_POOL[modelTag],
+												done: data.status === 'success'
+											}
+										});
 									}
-
-									MODEL_DOWNLOAD_POOL.set({
-										...$MODEL_DOWNLOAD_POOL,
-										[sanitizedModelTag]: {
-											...$MODEL_DOWNLOAD_POOL[sanitizedModelTag],
-											pullProgress: downloadProgress,
-											digest: data.digest
-										}
-									});
-								} else {
-									toast.success(data.status);
-
-									MODEL_DOWNLOAD_POOL.set({
-										...$MODEL_DOWNLOAD_POOL,
-										[sanitizedModelTag]: {
-											...$MODEL_DOWNLOAD_POOL[sanitizedModelTag],
-											done: data.status === 'success'
-										}
-									});
 								}
 							}
 						}
-					}
-				} catch (error) {
-					console.log(error);
-					if (typeof error !== 'string') {
-						error = error.message;
-					}
+					} catch (error) {
+						console.log(error);
+						if (typeof error !== 'string') {
+							error = error.message;
+						}
 
-					toast.error(`${error}`);
-					// opts.callback({ success: false, error, modelName: opts.modelName });
+						toast.error(`${error}`);
+						// opts.callback({ success: false, error, modelName: opts.modelName });
+					}
 				}
+
+				console.log($MODEL_DOWNLOAD_POOL[modelTag]);
+
+				if ($MODEL_DOWNLOAD_POOL[modelTag].done) {
+					toast.success(
+						$i18n.t(`Model '{{modelName}}' has been successfully downloaded.`, {
+							modelName: modelTag
+						})
+					);
+
+					models.set(
+						await getModels(
+							localStorage.token,
+							$config?.features?.enable_direct_connections && ($settings?.directConnections ?? null)
+						)
+					);
+				} else {
+					toast.error($i18n.t('Download canceled'));
+				}
+
+				delete $MODEL_DOWNLOAD_POOL[modelTag];
+
+				MODEL_DOWNLOAD_POOL.set({
+					...$MODEL_DOWNLOAD_POOL
+				});
 			}
-
-			console.log($MODEL_DOWNLOAD_POOL[sanitizedModelTag]);
-
-			if ($MODEL_DOWNLOAD_POOL[sanitizedModelTag].done) {
-				toast.success(
-					$i18n.t(`Model '{{modelName}}' has been successfully downloaded.`, {
-						modelName: sanitizedModelTag
-					})
-				);
-
-				models.set(
-					await getModels(
-						localStorage.token,
-						$config?.features?.enable_direct_connections && ($settings?.directConnections ?? null)
-					)
-				);
-			} else {
-				toast.error($i18n.t('Download canceled'));
-			}
-
-			delete $MODEL_DOWNLOAD_POOL[sanitizedModelTag];
-
-			MODEL_DOWNLOAD_POOL.set({
-				...$MODEL_DOWNLOAD_POOL
-			});
+		} catch (error) {
+			console.error(`[MODEL INIT] Exception during model pull for ${modelTag}: ${error}`);
 		}
 
 		modelTag = '';
@@ -258,7 +252,7 @@
 
 	const uploadModelHandler = async () => {
 		modelTransferring = true;
-
+		console.log(`[MODEL INIT] Starting model upload process`);
 		let uploaded = false;
 		let fileResponse = null;
 		let name = '';
@@ -443,6 +437,7 @@
 
 	const createModelHandler = async () => {
 		createModelLoading = true;
+		console.log(`[MODEL INIT] Creating model: ${createModelName}`);
 
 		let modelObject = {};
 		// parse createModelObject
@@ -538,12 +533,15 @@
 
 	const init = async () => {
 		loading = true;
+		console.log(`[MODEL INIT] Initializing Ollama models list for URL index: ${urlIdx}`);
 		ollamaModels = await getOllamaModels(localStorage.token, urlIdx).catch((error) => {
 			toast.error(`${error}`);
+			console.error(`[MODEL INIT] Error fetching Ollama models: ${error}`);
 			return null;
 		});
 
 		if (ollamaModels) {
+			console.log(`[MODEL INIT] Successfully loaded ${ollamaModels.length} Ollama models`);
 			loading = false;
 		}
 	};

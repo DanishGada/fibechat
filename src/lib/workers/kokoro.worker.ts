@@ -16,12 +16,14 @@ self.onmessage = async (event) => {
 		model_id = model_id || DEFAULT_MODEL_ID; // Use default model if none provided
 
 		self.postMessage({ status: 'init:start' });
+        console.log(`[MODEL INIT] Initializing Kokoro TTS model: ${model_id}, device: ${!!navigator?.gpu ? 'webgpu' : 'wasm'}`);
 
 		try {
 			tts = await KokoroTTS.from_pretrained(model_id, {
 				dtype,
 				device: !!navigator?.gpu ? 'webgpu' : 'wasm' // Detect WebGPU
 			});
+            console.log(`[MODEL INIT] Kokoro TTS model initialized successfully: ${model_id}`);
 			isInitialized = true; // Mark as initialized after successful loading
 			self.postMessage({ status: 'init:complete' });
 		} catch (error) {

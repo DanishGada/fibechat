@@ -31,6 +31,7 @@ log.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 
 async def get_all_base_models(request: Request, user: UserModel = None):
+    print("[MODEL INIT] Retrieving all base models")
     function_models = []
     openai_models = []
     ollama_models = []
@@ -40,19 +41,25 @@ async def get_all_base_models(request: Request, user: UserModel = None):
         openai_models = openai_models["data"]
 
     if request.app.state.config.ENABLE_OLLAMA_API:
-        ollama_models = await ollama.get_all_models(request, user=user)
-        ollama_models = [
-            {
-                "id": model["model"],
-                "name": model["name"],
-                "object": "model",
-                "created": int(time.time()),
-                "owned_by": "ollama",
-                "ollama": model,
-                "tags": model.get("tags", []),
-            }
-            for model in ollama_models["models"]
-        ]
+        try:
+            print(f"[MODEL INIT] Fetching local models from {url_ollama}")
+            local_models = await ollama.get_ollama_models(request, url_ollama, 0, user)
+            print(f"[MODEL INIT] Retrieved {len(local_models)} local models")
+            ollama_models = [
+                {
+                    "id": model["model"],
+                    "name": model["name"],
+                    "object": "model",
+                    "created": int(time.time()),
+                    "owned_by": "ollama",
+                    "ollama": model,
+                    "tags": model.get("tags", []),
+                }
+                for model in local_models["models"]
+            ]
+        except Exception as e:
+            print(f"[MODEL INIT] Error fetching local models: {str(e)}")
+            ollama_models = []
 
     function_models = await get_function_models(request)
     models = function_models + openai_models + ollama_models
@@ -61,6 +68,7 @@ async def get_all_base_models(request: Request, user: UserModel = None):
 
 
 async def get_all_models(request, user: UserModel = None):
+    print("[MODEL INIT] Retrieving all models")
     models = await get_all_base_models(request, user=user)
 
     # If there are no models, return an empty list

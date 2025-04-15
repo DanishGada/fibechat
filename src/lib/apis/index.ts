@@ -4,148 +4,104 @@ import { getOpenAIModelsDirect } from './openai';
 
 import { toast } from 'svelte-sonner';
 
-export const getModels = async (
-	token: string = '',
-	connections: object | null = null,
-	base: boolean = false
-) => {
-	let error = null;
-	const res = await fetch(`${WEBUI_BASE_URL}/api/models${base ? '/base' : ''}`, {
-		method: 'GET',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
-		}
-	})
-		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.catch((err) => {
-			error = err;
-			console.log(err);
-			return null;
-		});
+export const getModels = async (token: string, connections: any = null) => {
+	console.log(`[MODEL INIT] Fetching models with${connections ? '' : 'out'} direct connections`);
+	let localModels = [];
 
-	if (error) {
-		throw error;
-	}
+	if (connections) {
+		const OPENAI_API_BASE_URLS = connections.OPENAI_API_BASE_URLS;
+		const OPENAI_API_KEYS = connections.OPENAI_API_KEYS;
+		const OPENAI_API_CONFIGS = connections.OPENAI_API_CONFIGS;
 
-	let models = res?.data ?? [];
+		const requests = [];
+		for (const idx in OPENAI_API_BASE_URLS) {
+			const url = OPENAI_API_BASE_URLS[idx];
+			console.log(`[MODEL INIT] Processing direct connection URL: ${url}`);
 
-	if (connections && !base) {
-		let localModels = [];
+			if (idx.toString() in OPENAI_API_CONFIGS) {
+				const apiConfig = OPENAI_API_CONFIGS[idx.toString()] ?? {};
 
-		if (connections) {
-			const OPENAI_API_BASE_URLS = connections.OPENAI_API_BASE_URLS;
-			const OPENAI_API_KEYS = connections.OPENAI_API_KEYS;
-			const OPENAI_API_CONFIGS = connections.OPENAI_API_CONFIGS;
+				const enable = apiConfig?.enable ?? true;
+				const modelIds = apiConfig?.model_ids ?? [];
 
-			const requests = [];
-			for (const idx in OPENAI_API_BASE_URLS) {
-				const url = OPENAI_API_BASE_URLS[idx];
+				if (enable) {
+					if (modelIds.length > 0) {
+						console.log(`[MODEL INIT] Using configured model IDs for URL ${url}: ${modelIds.join(', ')}`);
+						const modelList = {
+							object: 'list',
+							data: modelIds.map((modelId) => ({
+								id: modelId,
+								name: modelId,
+								owned_by: 'openai',
+								openai: { id: modelId },
+								urlIdx: idx
+							}))
+						};
 
-				if (idx.toString() in OPENAI_API_CONFIGS) {
-					const apiConfig = OPENAI_API_CONFIGS[idx.toString()] ?? {};
-
-					const enable = apiConfig?.enable ?? true;
-					const modelIds = apiConfig?.model_ids ?? [];
-
-					if (enable) {
-						if (modelIds.length > 0) {
-							const modelList = {
-								object: 'list',
-								data: modelIds.map((modelId) => ({
-									id: modelId,
-									name: modelId,
-									owned_by: 'openai',
-									openai: { id: modelId },
-									urlIdx: idx
-								}))
-							};
-
-							requests.push(
-								(async () => {
-									return modelList;
-								})()
-							);
-						} else {
-							requests.push(
-								(async () => {
-									return await getOpenAIModelsDirect(url, OPENAI_API_KEYS[idx])
-										.then((res) => {
-											return res;
-										})
-										.catch((err) => {
-											return {
-												object: 'list',
-												data: [],
-												urlIdx: idx
-											};
-										});
-								})()
-							);
-						}
+						requests.push(
+							(async () => {
+								return modelList;
+							})()
+						);
 					} else {
 						requests.push(
 							(async () => {
-								return {
-									object: 'list',
-									data: [],
-									urlIdx: idx
-								};
+								return await getOpenAIModelsDirect(url, OPENAI_API_KEYS[idx])
+									.then((res) => {
+										return res;
+									})
+									.catch((err) => {
+										return {
+											object: 'list',
+											data: [],
+											urlIdx: idx
+										};
+									});
 							})()
 						);
 					}
+				} else {
+					requests.push(
+						(async () => {
+							return {
+								object: 'list',
+								data: [],
+								urlIdx: idx
+							};
+						})()
+					);
 				}
-			}
-
-			const responses = await Promise.all(requests);
-
-			for (const idx in responses) {
-				const response = responses[idx];
-				const apiConfig = OPENAI_API_CONFIGS[idx.toString()] ?? {};
-
-				let models = Array.isArray(response) ? response : (response?.data ?? []);
-				models = models.map((model) => ({ ...model, openai: { id: model.id }, urlIdx: idx }));
-
-				const prefixId = apiConfig.prefix_id;
-				if (prefixId) {
-					for (const model of models) {
-						model.id = `${prefixId}.${model.id}`;
-					}
-				}
-
-				const tags = apiConfig.tags;
-				if (tags) {
-					for (const model of models) {
-						model.tags = tags;
-					}
-				}
-
-				localModels = localModels.concat(models);
 			}
 		}
 
-		models = models.concat(
-			localModels.map((model) => ({
-				...model,
-				name: model?.name ?? model?.id,
-				direct: true
-			}))
-		);
+		const responses = await Promise.all(requests);
 
-		// Remove duplicates
-		const modelsMap = {};
-		for (const model of models) {
-			modelsMap[model.id] = model;
+		for (const idx in responses) {
+			const response = responses[idx];
+			const apiConfig = OPENAI_API_CONFIGS[idx.toString()] ?? {};
+
+			let models = Array.isArray(response) ? response : (response?.data ?? []);
+			models = models.map((model) => ({ ...model, openai: { id: model.id }, urlIdx: idx }));
+
+			const prefixId = apiConfig.prefix_id;
+			if (prefixId) {
+				for (const model of models) {
+					model.id = `${prefixId}.${model.id}`;
+				}
+			}
+
+			const tags = apiConfig.tags;
+			if (tags) {
+				for (const model of models) {
+					model.tags = tags;
+				}
+			}
+
+			localModels = localModels.concat(models);
 		}
-
-		models = Object.values(modelsMap);
 	}
 
-	return models;
+	return localModels;
 };
 
 type ChatCompletedForm = {

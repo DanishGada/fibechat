@@ -73,8 +73,9 @@
 	};
 
 	const init = async () => {
-		workspaceModels = await getBaseModels(localStorage.token);
-		baseModels = await getModels(localStorage.token, null, true);
+		console.log(`[MODEL INIT] Initializing models in admin settings`);
+		workspaceModels = await getWorkspaceModels(localStorage.token);
+        console.log(`[MODEL INIT] Loaded ${workspaceModels.length} workspace models`);
 
 		models = baseModels.map((m) => {
 			const workspaceModel = workspaceModels.find((wm) => wm.id === m.id);
@@ -98,21 +99,26 @@
 
 	const upsertModelHandler = async (model) => {
 		model.base_model_id = null;
+        console.log(`[MODEL INIT] Upserting model: ${model.id}`);
 
 		if (workspaceModels.find((m) => m.id === model.id)) {
 			const res = await updateModelById(localStorage.token, model.id, model).catch((error) => {
+                console.error(`[MODEL INIT] Error updating model ${model.id}: ${error}`);
 				return null;
 			});
 
 			if (res) {
+                console.log(`[MODEL INIT] Successfully updated model: ${model.id}`);
 				toast.success($i18n.t('Model updated successfully'));
 			}
 		} else {
 			const res = await createNewModel(localStorage.token, model).catch((error) => {
+                console.error(`[MODEL INIT] Error creating model ${model.id}: ${error}`);
 				return null;
 			});
 
 			if (res) {
+                console.log(`[MODEL INIT] Successfully created model: ${model.id}`);
 				toast.success($i18n.t('Model updated successfully'));
 			}
 		}

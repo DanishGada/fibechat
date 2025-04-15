@@ -120,13 +120,15 @@ def upload_file(
         print(f"[DEBUG] file_ext - {file_ext}")
         if file_ext in [".csv", ".xlsx", ".xls"]:
             # Read file contents with pandas based on extension
+            print(f"[MODEL INIT] Loading data model from file: {file_path} with extension {file_ext}")
             if file_ext == ".csv":
                 df = pd.read_csv(file_path)
             elif file_ext in [".xlsx", ".xls"]:
                 df = pd.read_excel(file_path)
             else:
                 df = ""
-                
+            print(f"[MODEL INIT] Data model loaded successfully, shape: {df.shape if not isinstance(df, str) else 'empty'}")
+        
         df_string = df.to_string(index=False)
         
         file_item = Files.insert_new_file(
@@ -214,7 +216,7 @@ def upload_file(
             )
 
     except Exception as e:
-        print(f"[DEBUG] Uncaught exception: {str(e)}")
+        print(f"[MODEL INIT] Error loading data model from file: {str(e)}")
         log.exception(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
