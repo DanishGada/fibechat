@@ -103,12 +103,18 @@ class FilesTable:
             file = FileModel(
                 **{
                     **form_data.model_dump(),
-                    "data": {"content": ""},
                     "user_id": user_id,
                     "created_at": int(time.time()),
                     "updated_at": int(time.time()),
                 }
             )
+            ## add safety check for empty content
+            if file['data'] is None:
+                file['data'] = {}
+            if file['data'].get('content') is None:
+                file['data']['content'] = ""
+                
+            print("CLEAN file: ",file)
 
             try:
                 result = File(**file.model_dump())
