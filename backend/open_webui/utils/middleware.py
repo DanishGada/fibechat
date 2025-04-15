@@ -583,12 +583,13 @@ async def chat_completion_files_handler(
                             if not line:
                                 break
                             lines.append(line)
-                        truncated_content = ''.join(lines)
-                        log.debug(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
-                        print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
 
-                        # Store truncated content back into the file dict for downstream use
-                        file['truncated_content'] = truncated_content
+                    truncated_content = ''.join(lines)
+                    log.debug(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
+                    print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
+
+                    # Store truncated content back into the file dict for downstream use
+                    file['truncated_content'] = truncated_content
 
                 except Exception as e:
                     log.debug(f"[DIAG] Error truncating file {filename}: {str(e)}")
