@@ -730,7 +730,7 @@ def generate_embeddings(
                 }
             )
         return embeddings[0] if isinstance(text, str) else embeddings
-    elif engine == "openai":
+    else: # Default to OpenAI
         if isinstance(text, list):
             embeddings = generate_openai_batch_embeddings(
                 model, text, url, key, prefix, user
