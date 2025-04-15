@@ -115,7 +115,7 @@ class ChatTable:
             print("Error popping files: ", e)
             files = None
         print("files: ", files)
-        print("form_data.chat: ", form_data.chat)
+        # print("form_data.chat: ", form_data.chat)
         with get_db() as db:
             id = str(uuid.uuid4())
             chat = ChatModel(
@@ -132,11 +132,11 @@ class ChatTable:
                     "updated_at": int(time.time()),
                 }
             )
-            print(chat)
+            # print(chat)
 
-            result = Chat(**chat.model_dump())
+            result = Chat(**chat.model_dump(exclude={"files"}))
             print("result")
-            print(result)
+            # print(result)
             db.add(result)
             db.commit()
             db.refresh(result)

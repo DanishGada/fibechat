@@ -70,4 +70,4 @@ def main():
     args = parser.parse_args()
 
     results = search_bing(args.locale, args.query, args.count, args.filter)
-    pprint(results)
+    print(results)
