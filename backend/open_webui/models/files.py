@@ -103,6 +103,7 @@ class FilesTable:
             file = FileModel(
                 **{
                     **form_data.model_dump(),
+                    "data": {"content": ""},
                     "user_id": user_id,
                     "created_at": int(time.time()),
                     "updated_at": int(time.time()),
