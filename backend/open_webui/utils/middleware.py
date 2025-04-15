@@ -562,12 +562,17 @@ async def chat_completion_files_handler(
             is_csv = (
                 content_type == 'text/csv' or (filename and filename.lower().endswith('.csv'))
             )
+            
+            # Simplified Excel MIME and extension check
+            excel_mime_keywords = ['excel', 'spreadsheetml']
+            excel_extensions = ['.xlsx', '.xls', '.xlsm', '.xltx', '.xltm', '.xlsb', '.xlam']
+            
             is_xlsx = (
-                content_type in [
-                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'application/vnd.ms-excel'
-                ] or (filename and (filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls')))
+                (content_type and any(keyword in content_type.lower() for keyword in excel_mime_keywords)) or
+                (filename and any(filename.lower().endswith(ext) for ext in excel_extensions))
             )
+            
+            log.debug(f"[DIAG] File type detection: is_csv={is_csv}, is_xlsx={is_xlsx}")
 
             if is_csv or is_xlsx:
                 try:
