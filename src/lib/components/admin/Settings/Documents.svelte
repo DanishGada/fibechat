@@ -491,13 +491,16 @@
 									on:change={(e) => {
 										if (e.target.value === 'ollama') {
 											embeddingModel = '';
-										} else {
+										} else if (e.target.value === 'openai') {
 											embeddingModel = 'text-embedding-3-small';
+										} else if (e.target.value === '') {
+											embeddingModel = 'sentence-transformers/all-MiniLM-L6-v2';
 										}
 									}}
 								>
-									<option value="openai">{$i18n.t('OpenAI')}</option>
+									<option value="">{$i18n.t('Default (SentenceTransformers)')}</option>
 									<option value="ollama">{$i18n.t('Ollama')}</option>
+									<option value="openai">{$i18n.t('OpenAI')}</option>
 								</select>
 							</div>
 						</div>

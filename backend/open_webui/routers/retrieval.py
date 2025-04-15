@@ -104,58 +104,58 @@ log.setLevel(SRC_LOG_LEVELS["RAG"])
 ##########################################
 
 
-# def get_ef(
-#     engine: str,
-#     embedding_model: str,
-#     auto_update: bool = False,
-# ):
-#     ef = None
-#     if embedding_model and engine == "":
-#         from sentence_transformers import SentenceTransformer
+def get_ef(
+    engine: str,
+    embedding_model: str,
+    auto_update: bool = False,
+):
+    ef = None
+    if embedding_model and engine == "":
+        from sentence_transformers import SentenceTransformer
 
-#         try:
-#             ef = SentenceTransformer(
-#                 get_model_path(embedding_model, auto_update),
-#                 device=DEVICE_TYPE,
-#                 trust_remote_code=RAG_EMBEDDING_MODEL_TRUST_REMOTE_CODE,
-#             )
-#         except Exception as e:
-#             log.debug(f"Error loading SentenceTransformer: {e}")
+        try:
+            ef = SentenceTransformer(
+                get_model_path(embedding_model, auto_update),
+                device=DEVICE_TYPE,
+                trust_remote_code=RAG_EMBEDDING_MODEL_TRUST_REMOTE_CODE,
+            )
+        except Exception as e:
+            log.debug(f"Error loading SentenceTransformer: {e}")
 
-#     return ef
+    return ef
 
 
-# def get_rf(
-#     reranking_model: str,
-#     auto_update: bool = False,
-# ):
-#     rf = None
-#     if reranking_model:
-#         if any(model in reranking_model for model in ["jinaai/jina-colbert-v2"]):
-#             try:
-#                 from open_webui.retrieval.models.colbert import ColBERT
+def get_rf(
+    reranking_model: str,
+    auto_update: bool = False,
+):
+    rf = None
+    if reranking_model:
+        if any(model in reranking_model for model in ["jinaai/jina-colbert-v2"]):
+            try:
+                from open_webui.retrieval.models.colbert import ColBERT
 
-#                 rf = ColBERT(
-#                     get_model_path(reranking_model, auto_update),
-#                     env="docker" if DOCKER else None,
-#                 )
+                rf = ColBERT(
+                    get_model_path(reranking_model, auto_update),
+                    env="docker" if DOCKER else None,
+                )
 
-#             except Exception as e:
-#                 log.error(f"ColBERT: {e}")
-#                 raise Exception(ERROR_MESSAGES.DEFAULT(e))
-#         else:
-#             import sentence_transformers
+            except Exception as e:
+                log.error(f"ColBERT: {e}")
+                raise Exception(ERROR_MESSAGES.DEFAULT(e))
+        else:
+            import sentence_transformers
 
-#             try:
-#                 rf = sentence_transformers.CrossEncoder(
-#                     get_model_path(reranking_model, auto_update),
-#                     device=DEVICE_TYPE,
-#                     trust_remote_code=RAG_RERANKING_MODEL_TRUST_REMOTE_CODE,
-#                 )
-#             except:
-#                 log.error("CrossEncoder error")
-#                 raise Exception(ERROR_MESSAGES.DEFAULT("CrossEncoder error"))
-#     return rf
+            try:
+                rf = sentence_transformers.CrossEncoder(
+                    get_model_path(reranking_model, auto_update),
+                    device=DEVICE_TYPE,
+                    trust_remote_code=RAG_RERANKING_MODEL_TRUST_REMOTE_CODE,
+                )
+            except:
+                log.error("CrossEncoder error")
+                raise Exception(ERROR_MESSAGES.DEFAULT("CrossEncoder error"))
+    return rf
 
 
 ##########################################
@@ -270,10 +270,10 @@ async def update_embedding_config(
                 form_data.embedding_batch_size
             )
 
-        # request.app.state.ef = get_ef(
-        #     request.app.state.config.RAG_EMBEDDING_ENGINE,
-        #     request.app.state.config.RAG_EMBEDDING_MODEL,
-        # )
+        request.app.state.ef = get_ef(
+            request.app.state.config.RAG_EMBEDDING_ENGINE,
+            request.app.state.config.RAG_EMBEDDING_MODEL,
+        )
 
         request.app.state.EMBEDDING_FUNCTION = get_embedding_function(
             request.app.state.config.RAG_EMBEDDING_ENGINE,
@@ -322,32 +322,31 @@ class RerankingModelUpdateForm(BaseModel):
 async def update_reranking_config(
     request: Request, form_data: RerankingModelUpdateForm, user=Depends(get_admin_user)
 ):
-    pass
-    # log.info(
-    #     f"Updating reranking model: {request.app.state.config.RAG_RERANKING_MODEL} to {form_data.reranking_model}"
-    # )
-    # try:
-    #     request.app.state.config.RAG_RERANKING_MODEL = form_data.reranking_model
+    log.info(
+        f"Updating reranking model: {request.app.state.config.RAG_RERANKING_MODEL} to {form_data.reranking_model}"
+    )
+    try:
+        request.app.state.config.RAG_RERANKING_MODEL = form_data.reranking_model
 
-    #     try:
-    #         request.app.state.rf = get_rf(
-    #             request.app.state.config.RAG_RERANKING_MODEL,
-    #             True,
-    #         )
-    #     except Exception as e:
-    #         log.error(f"Error loading reranking model: {e}")
-    #         request.app.state.config.ENABLE_RAG_HYBRID_SEARCH = False
+        try:
+            request.app.state.rf = get_rf(
+                request.app.state.config.RAG_RERANKING_MODEL,
+                True,
+            )
+        except Exception as e:
+            log.error(f"Error loading reranking model: {e}")
+            request.app.state.config.ENABLE_RAG_HYBRID_SEARCH = False
 
-    #     return {
-    #         "status": True,
-    #         "reranking_model": request.app.state.config.RAG_RERANKING_MODEL,
-    #     }
-    # except Exception as e:
-    #     log.exception(f"Problem updating reranking model: {e}")
-    #     raise HTTPException(
-    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #         detail=ERROR_MESSAGES.DEFAULT(e),
-    #     )
+        return {
+            "status": True,
+            "reranking_model": request.app.state.config.RAG_RERANKING_MODEL,
+        }
+    except Exception as e:
+        log.exception(f"Problem updating reranking model: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ERROR_MESSAGES.DEFAULT(e),
+        )
 
 
 @router.get("/config")
