@@ -114,7 +114,7 @@ class FilesTable:
                 if file.data is None:
                     file.data = {}
 
-                if file.data.get('content') is None:
+                if file.data.get('content'):
                     file.data['content'] = ""
                 print("CLEAN file:", file)
             except Exception as e:
