@@ -9,7 +9,7 @@ ARG USE_CUDA_VER=cu121
 # Leaderboard: https://huggingface.co/spaces/mteb/leaderboard 
 # for better performance and multilangauge support use "intfloat/multilingual-e5-large" (~2.5GB) or "intfloat/multilingual-e5-base" (~1.5GB)
 # IMPORTANT: If you change the embedding model (sentence-transformers/all-MiniLM-L6-v2) and vice versa, you aren't able to use RAG Chat with your previous documents loaded in the WebUI! You need to re-embed them.
-ARG USE_EMBEDDING_MODEL=""
+ARG USE_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 ARG USE_RERANKING_MODEL=""
 
 # Tiktoken encoding name; models to use can be found at https://huggingface.co/models?library=tiktoken
@@ -105,29 +105,29 @@ RUN echo -n 00000000-0000-0000-0000-000000000000 > $HOME/.cache/chroma/telemetry
 # Make sure the user has access to the app and root directory
 RUN chown -R $UID:$GID /app $HOME
 
-# RUN if [ "$USE_OLLAMA" = "true" ]; then \
-#     apt-get update && \
-#     # Install pandoc and netcat
-#     apt-get install -y --no-install-recommends git build-essential pandoc netcat-openbsd curl && \
-#     apt-get install -y --no-install-recommends gcc python3-dev && \
-#     # for RAG OCR
-#     apt-get install -y --no-install-recommends ffmpeg libsm6 libxext6 && \
-#     # install helper tools
-#     apt-get install -y --no-install-recommends curl jq && \
-#     # install ollama
-#     curl -fsSL https://ollama.com/install.sh | sh && \
-#     # cleanup
-#     rm -rf /var/lib/apt/lists/*; \
-#     else \
-#     apt-get update && \
-#     # Install pandoc, netcat and gcc
-#     apt-get install -y --no-install-recommends git build-essential pandoc gcc netcat-openbsd curl jq && \
-#     apt-get install -y --no-install-recommends gcc python3-dev && \
-#     # for RAG OCR
-#     apt-get install -y --no-install-recommends ffmpeg libsm6 libxext6 && \
-#     # cleanup
-#     rm -rf /var/lib/apt/lists/*; \
-#     fi
+RUN if [ "$USE_OLLAMA" = "true" ]; then \
+    apt-get update && \
+    # Install pandoc and netcat
+    apt-get install -y --no-install-recommends git build-essential pandoc netcat-openbsd curl && \
+    apt-get install -y --no-install-recommends gcc python3-dev && \
+    # for RAG OCR
+    apt-get install -y --no-install-recommends ffmpeg libsm6 libxext6 && \
+    # install helper tools
+    apt-get install -y --no-install-recommends curl jq && \
+    # install ollama
+    curl -fsSL https://ollama.com/install.sh | sh && \
+    # cleanup
+    rm -rf /var/lib/apt/lists/*; \
+    else \
+    apt-get update && \
+    # Install pandoc, netcat and gcc
+    apt-get install -y --no-install-recommends git build-essential pandoc gcc netcat-openbsd curl jq && \
+    apt-get install -y --no-install-recommends gcc python3-dev && \
+    # for RAG OCR
+    apt-get install -y --no-install-recommends ffmpeg libsm6 libxext6 && \
+    # cleanup
+    rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # install python dependencies
 COPY --chown=$UID:$GID ./backend/requirements.txt ./requirements.txt

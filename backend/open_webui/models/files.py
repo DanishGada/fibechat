@@ -108,7 +108,8 @@ class FilesTable:
                     "updated_at": int(time.time()),
                 }
             )
-            ## add safety check for empty content
+            # TODO add handling for csv and xlsx only
+            # add safety check for empty content
             # Add safety check for empty content
             try:
                 if file.data is None:

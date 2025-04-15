@@ -598,7 +598,6 @@ async def generate_chat_completion(
     idx = 0
 
     payload = {**form_data}
-    # print(f"[LLM PAYLOAD] Payload content before sending: {payload}")
     metadata = payload.pop("metadata", None)
 
     model_id = form_data.get("model")
@@ -748,7 +747,6 @@ async def generate_chat_completion(
                 log.error(e)
                 response = await r.text()
 
-            # print(f"[LLM RESPONSE] Status: {r.status}, Response: {response}")
             r.raise_for_status()
             return response
     except Exception as e:
