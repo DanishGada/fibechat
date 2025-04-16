@@ -114,47 +114,74 @@ DEFAULT_CONFIG = {
         "prompt_suggestions": [
             {
                 "title": [
-                    "Help me study",
-                    "vocabulary for a college entrance exam",
+                    "Explain EDA", 
+                    "for a beginner in data science"
                 ],
-                "content": "Help me study vocabulary: write a sentence for me to fill in the blank, and I'll try to pick the correct option.",
+                "content": "Explain exploratory data analysis (EDA) in simple terms and give me a step-by-step approach to performing EDA on a new dataset."
             },
             {
                 "title": [
-                    "Give me ideas",
-                    "for what to do with my kids' art",
+                    "Help me clean data", 
+                    "missing values and outliers"
                 ],
-                "content": "What are 5 creative things I could do with my kids' art? I don't want to throw them away, but it's also so much clutter.",
-            },
-            {
-                "title": ["Tell me a fun fact", "about the Roman Empire"],
-                "content": "Tell me a random fun fact about the Roman Empire",
+                "content": "What are the best strategies to handle missing values and outliers in a dataset? Provide Python code examples."
             },
             {
                 "title": [
-                    "Show me a code snippet",
-                    "of a website's sticky header",
+                    "Compare two datasets", 
+                    "statistical differences"
                 ],
-                "content": "Show me a code snippet of a website's sticky header in CSS and JavaScript.",
+                "content": "How can I statistically compare two datasets to check if they come from the same distribution? Suggest appropriate tests."
             },
             {
                 "title": [
-                    "Explain options trading",
-                    "if I'm familiar with buying and selling stocks",
+                    "Forecast sales", 
+                    "time series analysis"
                 ],
-                "content": "Explain options trading in simple terms if I'm familiar with buying and selling stocks.",
-            },
-            {
-                "title": ["Overcome procrastination", "give me tips"],
-                "content": "Could you start by asking me about instances when I procrastinate the most and then give me some suggestions to overcome it?",
+                "content": "What are the best time series forecasting techniques for predicting next month's sales? Explain with Python code."
             },
             {
                 "title": [
-                    "Grammar check",
-                    "rewrite it for better readability ",
+                    "Optimize SQL query", 
+                    "for large datasets"
                 ],
-                "content": 'Check the following sentence for grammar and clarity: "[sentence]". Rewrite it for better readability while maintaining its original meaning.',
+                "content": "How can I optimize a slow SQL query that processes millions of rows? Provide indexing and query restructuring tips."
             },
+            {
+                "title": [
+                    "Visualize correlations", 
+                    "best plots for relationships"
+                ],
+                "content": "What are the best visualization techniques to show correlations between multiple numeric variables?"
+            },
+            {
+                "title": [
+                    "Explain p-value", 
+                    "in hypothesis testing"
+                ],
+                "content": "Explain p-value in simple terms and how to interpret it in A/B testing scenarios."
+            },
+            {
+                "title": [
+                    "Feature selection", 
+                    "for machine learning"
+                ],
+                "content": "What are the best feature selection techniques before training a machine learning model? Compare filter, wrapper, and embedded methods."
+            },
+            {
+                "title": [
+                    "Detect anomalies", 
+                    "in transaction data"
+                ],
+                "content": "What are the most effective anomaly detection techniques for fraud detection in financial transactions?"
+            },
+            {
+                "title": [
+                    "Automate data reports", 
+                    "using Python"
+                ],
+                "content": "How can I automate a monthly sales report generation in Python? Provide a script that pulls data, processes it, and exports to Excel."
+            }
         ],
     },
 }
@@ -918,35 +945,78 @@ DEFAULT_MODELS = PersistentConfig(
 DEFAULT_PROMPT_SUGGESTIONS = PersistentConfig(
     "DEFAULT_PROMPT_SUGGESTIONS",
     "ui.prompt_suggestions",
-    [
+    "prompt_suggestions": [
         {
-            "title": ["Help me study", "vocabulary for a college entrance exam"],
-            "content": "Help me study vocabulary: write a sentence for me to fill in the blank, and I'll try to pick the correct option.",
-        },
-        {
-            "title": ["Give me ideas", "for what to do with my kids' art"],
-            "content": "What are 5 creative things I could do with my kids' art? I don't want to throw them away, but it's also so much clutter.",
-        },
-        {
-            "title": ["Tell me a fun fact", "about the Roman Empire"],
-            "content": "Tell me a random fun fact about the Roman Empire",
-        },
-        {
-            "title": ["Show me a code snippet", "of a website's sticky header"],
-            "content": "Show me a code snippet of a website's sticky header in CSS and JavaScript.",
+            "title": [
+                "Explain EDA", 
+                "for a beginner in data science"
+            ],
+            "content": "Explain exploratory data analysis (EDA) in simple terms and give me a step-by-step approach to performing EDA on a new dataset."
         },
         {
             "title": [
-                "Explain options trading",
-                "if I'm familiar with buying and selling stocks",
+                "Help me clean data", 
+                "missing values and outliers"
             ],
-            "content": "Explain options trading in simple terms if I'm familiar with buying and selling stocks.",
+            "content": "What are the best strategies to handle missing values and outliers in a dataset? Provide Python code examples."
         },
         {
-            "title": ["Overcome procrastination", "give me tips"],
-            "content": "Could you start by asking me about instances when I procrastinate the most and then give me some suggestions to overcome it?",
+            "title": [
+                "Compare two datasets", 
+                "statistical differences"
+            ],
+            "content": "How can I statistically compare two datasets to check if they come from the same distribution? Suggest appropriate tests."
         },
-    ],
+        {
+            "title": [
+                "Forecast sales", 
+                "time series analysis"
+            ],
+            "content": "What are the best time series forecasting techniques for predicting next month's sales? Explain with Python code."
+        },
+        {
+            "title": [
+                "Optimize SQL query", 
+                "for large datasets"
+            ],
+            "content": "How can I optimize a slow SQL query that processes millions of rows? Provide indexing and query restructuring tips."
+        },
+        {
+            "title": [
+                "Visualize correlations", 
+                "best plots for relationships"
+            ],
+            "content": "What are the best visualization techniques to show correlations between multiple numeric variables?"
+        },
+        {
+            "title": [
+                "Explain p-value", 
+                "in hypothesis testing"
+            ],
+            "content": "Explain p-value in simple terms and how to interpret it in A/B testing scenarios."
+        },
+        {
+            "title": [
+                "Feature selection", 
+                "for machine learning"
+            ],
+            "content": "What are the best feature selection techniques before training a machine learning model? Compare filter, wrapper, and embedded methods."
+        },
+        {
+            "title": [
+                "Detect anomalies", 
+                "in transaction data"
+            ],
+            "content": "What are the most effective anomaly detection techniques for fraud detection in financial transactions?"
+        },
+        {
+            "title": [
+                "Automate data reports", 
+                "using Python"
+            ],
+            "content": "How can I automate a monthly sales report generation in Python? Provide a script that pulls data, processes it, and exports to Excel."
+        }
+    ]
 )
 
 MODEL_ORDER_LIST = PersistentConfig(
