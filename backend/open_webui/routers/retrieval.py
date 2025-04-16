@@ -1113,35 +1113,66 @@ def process_csv_file(
     form_data: ProcessFileForm,
     user=Depends(get_verified_user),
 ):
+    import time
+    start_time = time.time()
+    print(f"Starting process_csv_file for file_id: {form_data.file_id}")
+    
     try:
+        # Step 1: Get file by ID
+        step1_start = time.time()
         file = Files.get_file_by_id(form_data.file_id)
+        step1_end = time.time()
+        print(f"Time to get file by ID: {step1_end - step1_start:.4f} seconds")
+        
+        # Step 2: Determine collection name
+        step2_start = time.time()
         collection_name = form_data.collection_name
         if collection_name is None:
             collection_name = f"file-{file.id}"
+        step2_end = time.time()
+        print(f"Time to determine collection name: {step2_end - step2_start:.4f} seconds")
 
+        # Step 3: Process content based on conditions
+        step3_start = time.time()
         if form_data.content:
             # Update the content in the file
             # Usage: /files/{file_id}/data/content/update
             text_content = form_data.content
-
+            print("Using provided content from form_data")
+            
         elif form_data.collection_name:
             # Check if the file has already been processed and save the content
             # Usage: /knowledge/{id}/file/add, /knowledge/{id}/file/update
-
             text_content = file.data.get("content", "")
+            print("Using existing content from file data")
+            
         else:
             # Process the file and save the content
             # Usage: /files/
+            process_start = time.time()
             file_path = file.path
+            print(f"Processing file from path: {file_path}")
+            
             ## read the csv or excel file and give top 100 rows of df
             if file_path:
+                file_path_resolve_start = time.time()
                 file_path = Storage.get_file(file_path)
+                file_path_resolve_end = time.time()
+                print(f"Time to resolve file path: {file_path_resolve_end - file_path_resolve_start:.4f} seconds")
+                
+                read_file_start = time.time()
                 if file.meta.get("content_type") == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                    print("Reading Excel file")
                     df = pd.read_excel(file_path, engine="openpyxl")
                 else:
+                    print("Reading CSV file")
                     df = pd.read_csv(file_path)
+                read_file_end = time.time()
+                print(f"Time to read file: {read_file_end - read_file_start:.4f} seconds")
+                print(f"DataFrame shape: {df.shape}")
 
                 # Convert the DataFrame to a list of dictionaries
+                docs_creation_start = time.time()
                 docs = [
                     Document(
                         page_content=str(row),
@@ -1155,19 +1186,61 @@ def process_csv_file(
                     )
                     for _, row in df.iterrows()
                 ]
+                docs_creation_end = time.time()
+                print(f"Time to create document objects: {docs_creation_end - docs_creation_start:.4f} seconds")
+                print(f"Created {len(docs)} document objects")
+                
+            join_content_start = time.time()
             text_content = " ".join([doc.page_content for doc in docs])
+            join_content_end = time.time()
+            print(f"Time to join document content: {join_content_end - join_content_start:.4f} seconds")
+            process_end = time.time()
+            print(f"Total file processing time: {process_end - process_start:.4f} seconds")
+            
+        step3_end = time.time()
+        print(f"Total content preparation time: {step3_end - step3_start:.4f} seconds")
+        print(f"Content length: {len(text_content)} characters")
 
-        log.debug(f"text_content: {text_content}")
+        # Step 4: Update file data and hash
+        step4_start = time.time()
+        log.debug(f"text_content: {text_content[:100]}...")  # Keep this as debug log
+        
+        update_data_start = time.time()
         Files.update_file_data_by_id(
             file.id,
             {"content": text_content},
         )
+        update_data_end = time.time()
+        print(f"Time to update file data: {update_data_end - update_data_start:.4f} seconds")
 
+        hash_start = time.time()
         hash = calculate_sha256_string(text_content)
+        hash_end = time.time()
+        print(f"Time to calculate hash: {hash_end - hash_start:.4f} seconds")
+        
+        update_hash_start = time.time()
         Files.update_file_hash_by_id(file.id, hash)
+        update_hash_end = time.time()
+        print(f"Time to update file hash: {update_hash_end - update_hash_start:.4f} seconds")
+        
+        step4_end = time.time()
+        print(f"Total time for data and hash updates: {step4_end - step4_start:.4f} seconds")
+
+        end_time = time.time()
+        total_time = end_time - start_time
+        print(f"Total processing time for file {form_data.file_id}: {total_time:.4f} seconds")
+        
+        return {
+            "status": True,
+            "collection_name": collection_name,
+            "filename": file.filename,
+            "content_length": len(text_content),
+            "processing_time": total_time
+        }
 
     except Exception as e:
-        log.exception(e)
+        error_time = time.time()
+        log.exception(f"Error processing file {form_data.file_id} after {error_time - start_time:.4f} seconds: {e}")
         if "No pandoc was found" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
