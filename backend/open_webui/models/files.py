@@ -109,8 +109,6 @@ class FilesTable:
                 }
             )
             # TODO add handling for csv and xlsx only
-            # add safety check for empty content
-            # Add safety check for empty content
             try:
                 if file.data is None:
                     file.data = {}

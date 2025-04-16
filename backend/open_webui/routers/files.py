@@ -86,7 +86,7 @@ def upload_file(
     file: UploadFile = File(...),
     user=Depends(get_verified_user),
     file_metadata: dict = {},
-    process: bool = Query(True),
+    process: bool = Query(False),
 ):
     print(f"[DEBUG] Starting file upload: {file.filename}")
     print(f"[DEBUG] Content type: {file.content_type}")
