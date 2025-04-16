@@ -550,14 +550,35 @@ async def chat_image_generation_handler(
 
 async def chat_completion_files_handler(
     request: Request, body: dict, user: UserModel
-) -> tuple[dict, dict[str, list]]:
+) -> tuple[dict, dict[str, list], str]:
     sources = []
+    filename = None
+    content_type = None
+    context_string = ""
+    file_paths = []
+
     if files := body.get("metadata", {}).get("files", None):
         for file in files:
             filename = file.get('filename') or file.get('name')
             content_type = file.get('meta', {}).get('content_type', '')
+            file_id = file.get("id")
             log.debug(f"[DIAG] Processing file: {filename}, content_type: {content_type}")
-    if not is_spreadsheet_file(filename, content_type):
+            print("Sources Compute Here")
+            print(f"[DIAG] Building context string for {filename}")
+            file_paths.append(f"{file_id}_{filename}")
+
+    # You can use the last file for checking type if needed
+    if not filename and not content_type and is_spreadsheet_file(filename, content_type):
+        joined_file_paths = ", ".join(file_paths)
+        context_string += (
+            f"<instructions> To analyse all the contents of the file you will have to write code to read "
+            f"the contents of the file. The actual file(s) are accessible to you using the path(s): "
+            f"{joined_file_paths}. "
+        )
+        context_string += "Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
+        context_string += "Also Provide the code in the Code Interpreter tool format."
+
+    if not filename and not content_type and not is_spreadsheet_file(filename, content_type):
         queries = []
         try:
             queries_response = await generate_queries(
@@ -616,7 +637,7 @@ async def chat_completion_files_handler(
 
         log.debug(f"rag_contexts:sources: {sources}")
 
-    return body, {"sources": sources}
+    return body, {"sources": sources}, context_string
 
 
 def apply_params_to_form_data(form_data, model):
@@ -824,7 +845,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 **extra_params,
                 "__model__": models[task_model_id],
                 "__messages__": form_data["messages"],
-                "__files__": [],
+                "__files__": metadata.get("files", []),
             },
         )
 
@@ -859,15 +880,16 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 log.exception(e)
 
     try:
-        form_data, flags = await chat_completion_files_handler(request, form_data, user)
+        form_data, flags, context_string = await chat_completion_files_handler(request, form_data, user)
+        if context_string != "":
+            prompt = get_last_user_message(form_data["messages"])
+            form_data["messages"] = add_or_update_system_message(context_string,form_data["messages"])
+
         sources.extend(flags.get("sources", []))
     except Exception as e:
         log.exception(e)
 
-    # If context is not empty, insert it into the messages
-    print("HEREEEEEEEE")
     if len(sources) > 0:
-        context_string = ""
         for source_idx, source in enumerate(sources):
             if "document" in source:
                 for doc_idx, doc_context in enumerate(source["document"]):
@@ -879,30 +901,6 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     content_type = source.get('source', {}).get('file', {}).get('meta', {}).get('content_type', '')
                     file_id = source.get('source', {}).get('file', {}).get('id') or source.get('source', {}).get('id')
                     print(f"[DIAG] Processing file: {filename}, content_type: {content_type}, file_id: {file_id}")
-                    if is_spreadsheet_file(filename, content_type):
-                        print(f"[DIAG] Attempting truncation for file: {filename}")
-                        try:
-                            original_content = source['document'][doc_idx]
-                            print(f"[DIAG] Original content length: {len(original_content)}")
-                            lines = original_content.splitlines(keepends=True)[:5]
-                            truncated_content = ''.join(lines)
-                            source['document'][doc_idx] = truncated_content
-                            print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
-                            print(f"[DIAG] Truncated content preview for {filename}: {truncated_content[:200]}")
-                            print(f"[DIAG] Building context string for {filename}")
-                            context_string+=f"<source><source_id>{source_idx + 1}</source_id><source_truncated_context>{truncated_content}</source_id><source_truncated_context>"
-                            context_string+= f"<instructions> To analyse all the contents of the file you will have to write code to read the contents of the file. The actual file is accessible to you using the path {file_id}_{filename}"
-                            context_string+= "Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
-                            context_string+= "Also Provide the code in the Code Interpreter tool format. </source>"
-                            print(f"[DIAG] Added file access instructions for {filename}")
-                        except Exception as e:
-                            print(f"[DIAG] Error truncating embedded content for {filename}: {str(e)}")
-                            # Keep the original content if truncation fails
-                            truncated_content = doc_context
-                            print(f"[DIAG] Using original content with length: {len(truncated_content)}")
-
-        context_string = context_string.strip()
-        print(f"[DIAG] Final context string length: {len(context_string)}")
         prompt = get_last_user_message(form_data["messages"])
 
         if prompt is None:
