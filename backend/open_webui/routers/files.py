@@ -119,17 +119,7 @@ def upload_file(
         print(f"[DEBUG] Creating file_item object")
         file_ext = os.path.splitext(file.filename)[1].lower()
         print(f"[DEBUG] file_ext - {file_ext}")
-        if file_ext in [".csv", ".xlsx", ".xls"]:
-            # Read file contents with pandas based on extension
-            if file_ext == ".csv":
-                df = pd.read_csv(file_path)
-            elif file_ext in [".xlsx", ".xls",".sheet"]:
-                df = pd.read_excel(file_path)
-            else:
-                df = ""
                 
-        df_string = df.to_string(index=False)
-        
         file_item = Files.insert_new_file(
             user.id,
             FileForm(
@@ -144,7 +134,7 @@ def upload_file(
                         "data": file_metadata,
                     },
                     "data": {
-                        "content": df_string,
+                        "content": "",
                     }
                 }
             ),
