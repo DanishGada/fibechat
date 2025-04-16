@@ -558,23 +558,7 @@ async def chat_completion_files_handler(
             content_type = file.get('meta', {}).get('content_type', '')
             log.debug(f"[DIAG] Processing file: {filename}, content_type: {content_type}")
 
-            # Check if CSV or Excel by MIME type or filename extension
-            is_csv = (
-                content_type == 'text/csv' or (filename and filename.lower().endswith('.csv'))
-            )
-            
-            # Simplified Excel MIME and extension check
-            excel_mime_keywords = ['excel', 'spreadsheetml']
-            excel_extensions = ['.xlsx', '.xls', '.xlsm', '.xltx', '.xltm', '.xlsb', '.xlam']
-            
-            is_xlsx = (
-                (content_type and any(keyword in content_type.lower() for keyword in excel_mime_keywords)) or
-                (filename and any(filename.lower().endswith(ext) for ext in excel_extensions))
-            )
-            
-            log.debug(f"[DIAG] File type detection: is_csv={is_csv}, is_xlsx={is_xlsx}")
-
-            if is_csv or is_xlsx:
+            if is_spreadsheet_file(filename, content_type):
                 try:
                     file_path = file.get('path')
                     if not file_path:
@@ -908,7 +892,6 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     print("HEREEEEEEEE")
     if len(sources) > 0:
         context_string = ""
-        # print(f"[DIAG] All sources: {sources}")
         for source_idx, source in enumerate(sources):
             if "document" in source:
                 for doc_idx, doc_context in enumerate(source["document"]):
@@ -920,18 +903,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     content_type = source.get('source', {}).get('file', {}).get('meta', {}).get('content_type', '')
                     file_id = source.get('source', {}).get('file', {}).get('id') or source.get('source', {}).get('id')
                     print(f"[DIAG] Processing file: {filename}, content_type: {content_type}, file_id: {file_id}")
-                    
-                    is_csv = (
-                        content_type == 'text/csv' or (filename and filename.lower().endswith('.csv'))
-                    )
-                    is_xlsx = (
-                        content_type in [
-                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                            'application/vnd.ms-excel'
-                        ] or (filename and (filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls')))
-                    )
-                    
-                    if is_csv or is_xlsx:
+                    if is_spreadsheet_file(filename, content_type):
                         print(f"[DIAG] Attempting truncation for file: {filename}")
                         try:
                             original_content = source['document'][doc_idx]
@@ -941,23 +913,17 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                             source['document'][doc_idx] = truncated_content
                             print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
                             print(f"[DIAG] Truncated content preview for {filename}: {truncated_content[:200]}")
+                            print(f"[DIAG] Building context string for {filename}")
+                            context_string+=f"<source><source_id>{source_idx + 1}</source_id><source_truncated_context>{truncated_content}</source_id><source_truncated_context>"
+                            context_string+= f"<instructions> To analyse all the contents of the file you will have to write code to read the contents of the file. The actual file is accessible to you using the path {file_id}_{filename}"
+                            context_string+= "Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
+                            context_string+= "Also Provide the code in the Code Interpreter tool format. </source>"
+                            print(f"[DIAG] Added file access instructions for {filename}")
                         except Exception as e:
                             print(f"[DIAG] Error truncating embedded content for {filename}: {str(e)}")
                             # Keep the original content if truncation fails
                             truncated_content = doc_context
                             print(f"[DIAG] Using original content with length: {len(truncated_content)}")
-                
-                # Add to context string with proper error handling
-                try:
-                    print(f"[DIAG] Building context string for {filename}")
-                    context_string+=f"<source><source_id>{source_idx + 1}</source_id><source_truncated_context>{truncated_content}</source_id><source_truncated_context>"
-                    if file_id and filename and (is_csv or is_xlsx):
-                        context_string+= f" to analyse all the contents of the file you will have to write code to read the contents of the file. The actual file is accessible to you using the path {file_id}_{filename}"
-                        context_string+= "<instructions>Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
-                        print(f"[DIAG] Added file access instructions for {filename}")
-                except Exception as e:
-                    print(f"[DIAG] Error building context string: {str(e)}")
-                    log.exception(f"Error building context string for file {filename}")
 
         context_string = context_string.strip()
         print(f"[DIAG] Final context string length: {len(context_string)}")
@@ -2324,3 +2290,31 @@ async def process_chat_response(
             headers=dict(response.headers),
             background=response.background,
         )
+        
+def is_spreadsheet_file(filename=None, content_type=None):
+    """
+    Determines if a file is a spreadsheet (CSV or Excel) based on content type or filename.
+    
+    Args:
+        filename (str, optional): The name of the file
+        content_type (str, optional): The MIME type of the file
+        
+    Returns:
+        bool: True if the file is either a CSV or Excel file, False otherwise
+    """
+    # Check if it's a CSV file
+    is_csv = (
+        content_type == 'text/csv' or 
+        (filename and filename.lower().endswith('.csv'))
+    )
+    
+    # Check if it's an Excel file (XLSX or XLS)
+    is_xlsx = (
+        content_type in [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel'
+        ] or (filename and (filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls')))
+    )
+    
+    # Return True if it's either a CSV or Excel file
+    return is_csv or is_xlsx
