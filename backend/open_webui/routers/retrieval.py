@@ -1190,7 +1190,7 @@ def process_csv_file(
             "status": True,
             "collection_name": collection_name,
             "filename": file.filename,
-            "content_length": len(text_content),
+            "content_length": 1,
             "processing_time": total_time
         }
 
