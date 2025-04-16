@@ -33,7 +33,7 @@ from open_webui.routers.audio import transcribe
 from open_webui.storage.provider import Storage
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from pydantic import BaseModel
-from open_webui.utils.middleware import is_spreadsheet_file
+from open_webui.utils.file_contents import is_spreadsheet_file
 
 
 log = logging.getLogger(__name__)
