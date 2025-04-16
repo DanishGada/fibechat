@@ -176,10 +176,19 @@ def upload_file(
                 ## add handling for csv and xlsx or xlx
                 elif is_spreadsheet_file(filename, file.content_type):
                     print(f"[DEBUG] CSV or Excel file detected, processing")
-                    
+                    start_time = time.time()
+                    print(f"[DEBUG] Starting CSV/Excel processing at {start_time}")
                     process_csv_file(request, ProcessFileForm(file_id=id), user=user)
                     print(f"[DEBUG] CSV or Excel file processed successfully")
-
+                    end_time = time.time()
+                    processing_time = end_time - start_time
+                    print(f"[DEBUG] CSV/Excel processing completed in {processing_time:.2f} seconds")
+                    log.info(f"File {id} ({filename}) processed in {processing_time:.2f} seconds")
+    
+                    print(f"[DEBUG] Audio file processed successfully")
+                        # Log detailed timing information
+                    if processing_time > 10:
+                        log.warning(f"CSV/Excel processing took longer than expected: {processing_time:.2f}s for file {filename} (id: {id})")
                 elif file.content_type not in ["image/png", "image/jpeg", "image/gif"]:
                     print(f"[DEBUG] Non-image file detected, processing")
                     process_file(request, ProcessFileForm(file_id=id), user=user)
