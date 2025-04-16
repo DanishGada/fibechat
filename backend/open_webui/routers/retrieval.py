@@ -4,6 +4,7 @@ import mimetypes
 import os
 import shutil
 import pandas as pd
+import uuid
 
 
 import uuid
@@ -1173,25 +1174,25 @@ def process_csv_file(
 
                 # Convert the DataFrame to a list of dictionaries
                 docs_creation_start = time.time()
-                docs = [
-                    Document(
-                        page_content=str(row),
-                        metadata={
-                            **file.meta,
-                            "name": file.filename,
-                            "created_by": file.user_id,
-                            "file_id": file.id,
-                            "source": file.filename,
-                        },
-                    )
-                    for _, row in df.iterrows()
-                ]
+                # docs = [
+                #     Document(
+                #         page_content=str(row),
+                #         metadata={
+                #             **file.meta,
+                #             "name": file.filename,
+                #             "created_by": file.user_id,
+                #             "file_id": file.id,
+                #             "source": file.filename,
+                #         },
+                #     )
+                #     for _, row in df.iterrows()
+                # ]
                 docs_creation_end = time.time()
                 print(f"Time to create document objects: {docs_creation_end - docs_creation_start:.4f} seconds")
-                print(f"Created {len(docs)} document objects")
+                # print(f"Created {len(docs)} document objects")
                 
             join_content_start = time.time()
-            text_content = " ".join([doc.page_content for doc in docs])
+            text_content = ""
             join_content_end = time.time()
             print(f"Time to join document content: {join_content_end - join_content_start:.4f} seconds")
             process_end = time.time()
@@ -1199,22 +1200,22 @@ def process_csv_file(
             
         step3_end = time.time()
         print(f"Total content preparation time: {step3_end - step3_start:.4f} seconds")
-        print(f"Content length: {len(text_content)} characters")
+        # print(f"Content length: {len(text_content)} characters")
 
         # Step 4: Update file data and hash
         step4_start = time.time()
-        log.debug(f"text_content: {text_content[:100]}...")  # Keep this as debug log
+        # log.debug(f"text_content: {text_content[:100]}...")  # Keep this as debug log
         
         update_data_start = time.time()
         Files.update_file_data_by_id(
             file.id,
-            {"content": text_content},
+            {"content": ""},
         )
         update_data_end = time.time()
         print(f"Time to update file data: {update_data_end - update_data_start:.4f} seconds")
 
         hash_start = time.time()
-        hash = calculate_sha256_string(text_content)
+        hash = str(uuid.uuid4())
         hash_end = time.time()
         print(f"Time to calculate hash: {hash_end - hash_start:.4f} seconds")
         
