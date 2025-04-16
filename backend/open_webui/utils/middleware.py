@@ -552,37 +552,12 @@ async def chat_completion_files_handler(
     request: Request, body: dict, user: UserModel
 ) -> tuple[dict, dict[str, list]]:
     sources = []
-
     if files := body.get("metadata", {}).get("files", None):
         for file in files:
             filename = file.get('filename') or file.get('name')
             content_type = file.get('meta', {}).get('content_type', '')
             log.debug(f"[DIAG] Processing file: {filename}, content_type: {content_type}")
-
-            if is_spreadsheet_file(filename, content_type):
-                try:
-                    file_path = file.get('path')
-                    if not file_path:
-                        log.debug(f"[DIAG] No file path found for {filename}, skipping truncation")
-                        continue
-
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        lines = []
-                        for _ in range(5):
-                            line = f.readline()
-                            if not line:
-                                break
-                            lines.append(line)
-
-                    truncated_content = ''.join(lines)
-                    log.debug(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
-                    print(f"[DIAG] Truncated content length for {filename}: {len(truncated_content)}")
-
-                    # Store truncated content back into the file dict for downstream use
-                    file['truncated_content'] = truncated_content
-
-                except Exception as e:
-                    log.debug(f"[DIAG] Error truncating file {filename}: {str(e)}")
+    if not is_spreadsheet_file(filename, content_type):
         queries = []
         try:
             queries_response = await generate_queries(
