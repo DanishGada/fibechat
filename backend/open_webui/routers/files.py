@@ -33,6 +33,7 @@ from open_webui.routers.audio import transcribe
 from open_webui.storage.provider import Storage
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from pydantic import BaseModel
+from open_webui.utils.middleware import is_spreadsheet_file
 
 
 log = logging.getLogger(__name__)
@@ -172,11 +173,7 @@ def upload_file(
                     )
                     print(f"[DEBUG] Audio file processed successfully")
                 ## add handling for csv and xlsx or xlx
-                elif file.content_type in [
-                    "text/csv",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    "application/vnd.ms-excel",
-                ]:
+                elif is_spreadsheet_file(filename, file.content_type):
                     print(f"[DEBUG] CSV or Excel file detected, processing")
                     process_csv_file(request, ProcessFileForm(file_id=id), user=user)
                     print(f"[DEBUG] CSV or Excel file processed successfully")
