@@ -1153,51 +1153,6 @@ def process_csv_file(
             process_start = time.time()
             file_path = file.path
             print(f"Processing file from path: {file_path}")
-            
-            ## read the csv or excel file and give top 100 rows of df
-            if file_path:
-                file_path_resolve_start = time.time()
-                file_path = Storage.get_file(file_path)
-                file_path_resolve_end = time.time()
-                print(f"Time to resolve file path: {file_path_resolve_end - file_path_resolve_start:.4f} seconds")
-                
-                read_file_start = time.time()
-                if file.meta.get("content_type") == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-                    print("Reading Excel file")
-                    df = pd.read_excel(file_path, engine="openpyxl")
-                else:
-                    print("Reading CSV file")
-                    df = pd.read_csv(file_path)
-                read_file_end = time.time()
-                print(f"Time to read file: {read_file_end - read_file_start:.4f} seconds")
-                print(f"DataFrame shape: {df.shape}")
-
-                # Convert the DataFrame to a list of dictionaries
-                docs_creation_start = time.time()
-                # docs = [
-                #     Document(
-                #         page_content=str(row),
-                #         metadata={
-                #             **file.meta,
-                #             "name": file.filename,
-                #             "created_by": file.user_id,
-                #             "file_id": file.id,
-                #             "source": file.filename,
-                #         },
-                #     )
-                #     for _, row in df.iterrows()
-                # ]
-                docs_creation_end = time.time()
-                print(f"Time to create document objects: {docs_creation_end - docs_creation_start:.4f} seconds")
-                # print(f"Created {len(docs)} document objects")
-                
-            join_content_start = time.time()
-            text_content = ""
-            join_content_end = time.time()
-            print(f"Time to join document content: {join_content_end - join_content_start:.4f} seconds")
-            process_end = time.time()
-            print(f"Total file processing time: {process_end - process_start:.4f} seconds")
-            
         step3_end = time.time()
         print(f"Total content preparation time: {step3_end - step3_start:.4f} seconds")
         # print(f"Content length: {len(text_content)} characters")
