@@ -579,6 +579,7 @@ async def chat_completion_files_handler(
         )
         context_string += "Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
         context_string += "Also Provide the code in the Code Interpreter tool format."
+        context_string += "<outputFiles>if the code execution gives output the files,images,etc will be accessible at '../../cache/images/{image_name}'</outputFiles>"
     else:
         queries = []
         try:
