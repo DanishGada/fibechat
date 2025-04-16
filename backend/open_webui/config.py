@@ -945,7 +945,7 @@ DEFAULT_MODELS = PersistentConfig(
 DEFAULT_PROMPT_SUGGESTIONS = PersistentConfig(
     "DEFAULT_PROMPT_SUGGESTIONS",
     "ui.prompt_suggestions",
-    "prompt_suggestions": [
+    [
         {
             "title": [
                 "Explain EDA", 
