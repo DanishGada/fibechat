@@ -3,7 +3,7 @@ import json
 import logging
 import time
 import uuid
-from typing import Optional
+from typing import Optional, Dict
 
 import aiohttp
 import websockets
@@ -97,6 +97,13 @@ class JupyterCodeExecuter:
             end_time = time.time()
             print(f"[CODE-INTERPRETER] sign_in step finished in {end_time - start_time:.4f} seconds.")
 
+            # Check/create notebook
+            print("[CODE-INTERPRETER] Starting check_or_create_notebook step.")
+            start_time = time.time()
+            notebook_path = await self.check_or_create_notebook()
+            end_time = time.time()
+            print(f"[CODE-INTERPRETER] check_or_create_notebook step finished in {end_time - start_time:.4f} seconds.")
+
             # Init kernel
             print("[CODE-INTERPRETER] Starting init_kernel step.")
             start_time = time.time()
@@ -164,6 +171,63 @@ class JupyterCodeExecuter:
         end_time = time.time()
         print(f"[CODE-INTERPRETER] sign_in process finished in {end_time - start_time:.4f} seconds.")
 
+    async def check_or_create_notebook(self) -> Optional[str]:
+        """
+        Check if notebook exists and create it if it doesn't
+
+        Returns:
+            Path to the notebook if successful, None otherwise
+        """
+        if not self.notebook_id:
+            print("[CODE-INTERPRETER] No notebook_id specified, skipping notebook creation/check.")
+            return None
+
+        print(f"[CODE-INTERPRETER] Checking if notebook '{self.notebook_id}' exists.")
+        try:
+            # Try to get the notebook
+            async with self.session.get(
+                f"/api/contents/{self.notebook_id}",
+                params=self.params
+            ) as response:
+                if response.status == 200:
+                    print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' already exists.")
+                    return self.notebook_id
+                elif response.status == 404:
+                    # Create empty notebook model
+                    print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' does not exist. Creating it.")
+                    notebook_model = {
+                        "type": "notebook",
+                        "content": {
+                            "metadata": {
+                                "kernelspec": {
+                                    "name": "python3",
+                                    "display_name": "Python 3",
+                                    "language": "python"
+                                }
+                            },
+                            "nbformat": 4,
+                            "nbformat_minor": 5,
+                            "cells": []
+                        }
+                    }
+                    
+                    # Create the notebook
+                    async with self.session.put(
+                        f"/api/contents/{self.notebook_id}",
+                        json=notebook_model,
+                        params=self.params
+                    ) as create_response:
+                        create_response.raise_for_status()
+                        print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' created successfully.")
+                        return self.notebook_id
+                else:
+                    print(f"[CODE-INTERPRETER] Unexpected status code when checking notebook: {response.status}")
+                    return None
+                    
+        except Exception as e:
+            print(f"[CODE-INTERPRETER] Error checking/creating notebook: {e}")
+            return None
+
     async def init_kernel(self) -> None:
         print(f"[CODE-INTERPRETER] Initializing kernel (notebook_id: {self.notebook_id}).")
         start_time = time.time()
@@ -212,14 +276,9 @@ class JupyterCodeExecuter:
             print("[CODE-INTERPRETER] Creating a new kernel.")
             try:
                 # Prepare data for creating a new kernel, potentially associating with the notebook path
-                # Note: Standard Jupyter Server API might not directly link kernel to path on creation.
-                # Often, a session needs to be created which links path and kernel.
-                # For simplicity, we create the kernel first. If association is needed,
-                # creating/updating a session might be required afterwards.
                 post_data = {"name": "python3"} # Specify kernel type, adjust if needed
                 if self.notebook_id:
                      print(f"[CODE-INTERPRETER] Requesting new kernel (intended for notebook: {self.notebook_id})")
-                     # post_data["path"] = self.notebook_id # This field might not be standard for /api/kernels
 
                 print(f"[CODE-INTERPRETER] Making API call: POST {kernel_url} with params: {self.params} and data: {post_data}")
                 async with self.session.post(
@@ -239,7 +298,7 @@ class JupyterCodeExecuter:
                             "name": "", # Optional session name
                             "kernel": {
                                 "id": self.kernel_id,
-                                # "name": "python3" # Kernel name might also be needed here
+                                "name": "python3" # Kernel name might also be needed here
                             }
                         }
                         try:
@@ -341,6 +400,7 @@ class JupyterCodeExecuter:
         
         # parse message
         stdout, stderr, result = "", "", []
+        execution_count = None
         print("[CODE-INTERPRETER] Waiting for messages from kernel...")
         while True:
             try:
@@ -356,7 +416,7 @@ class JupyterCodeExecuter:
                     continue
                 
                 # check message type
-                msg_type = message_data.get("msg_type")
+                msg_type = message_data.get("header", {}).get("msg_type")
                 print(f"[CODE-INTERPRETER] Processing message of type: {msg_type}")
                 match msg_type:
                     case "stream":
@@ -368,8 +428,15 @@ class JupyterCodeExecuter:
                         elif stream_name == "stderr":
                             stderr += stream_text
                     case "execute_result" | "display_data":
-                        data = message_data["content"]["data"]
+                        content = message_data.get("content", {})
+                        data = content.get("data", {})
                         print(f"[CODE-INTERPRETER] Execute result/Display data: {data}")
+                        
+                        # Get execution count if available
+                        if "execution_count" in content and execution_count is None:
+                            execution_count = content["execution_count"]
+                            print(f"[CODE-INTERPRETER] Execution count: {execution_count}")
+                            
                         if "image/png" in data:
                             img_data = f"data:image/png;base64,{data['image/png']}"
                             print(f"[CODE-INTERPRETER] Appending image data (first 20 chars): {img_data[:20]}...")
@@ -388,6 +455,11 @@ class JupyterCodeExecuter:
                         if execution_state == "idle":
                             print("[CODE-INTERPRETER] Kernel is idle, execution likely complete.")
                             break
+                    case "execute_input":
+                        # Get execution count from input too if not yet set
+                        if "execution_count" in message_data.get("content", {}) and execution_count is None:
+                            execution_count = message_data["content"]["execution_count"]
+                            print(f"[CODE-INTERPRETER] Execution count from input: {execution_count}")
                     case _:
                          print(f"[CODE-INTERPRETER] Unhandled message type: {msg_type}")
 
@@ -416,16 +488,105 @@ class JupyterCodeExecuter:
         print(f"[CODE-INTERPRETER] Parsed STDOUT: '{self.result.stdout}'")
         print(f"[CODE-INTERPRETER] Parsed STDERR: '{self.result.stderr}'")
         print(f"[CODE-INTERPRETER] Parsed RESULT: '{self.result.result}'")
+        
+        # Append executed code to the notebook
+        if self.notebook_id:
+            await self.append_to_notebook({
+                "code": self.code,
+                "stdout": self.result.stdout,
+                "stderr": self.result.stderr,
+                "result": self.result.result,
+                "execution_count": execution_count
+            })
+
+    async def append_to_notebook(self, execution_data: Dict) -> bool:
+        """
+        Append code and its output to the notebook
+        
+        Args:
+            execution_data: Dict containing code, stdout, stderr, result
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.notebook_id:
+            print("[CODE-INTERPRETER] No notebook_id specified, skipping append to notebook.")
+            return False
+            
+        try:
+            # Get current notebook content
+            print(f"[CODE-INTERPRETER] Getting current content of notebook '{self.notebook_id}'.")
+            async with self.session.get(
+                f"/api/contents/{self.notebook_id}",
+                params=self.params
+            ) as response:
+                response.raise_for_status()
+                notebook_data = await response.json()
+                
+            # Prepare cell outputs
+            cell_outputs = []
+            
+            # Add stdout output
+            if execution_data.get("stdout"):
+                cell_outputs.append({
+                    "output_type": "stream",
+                    "name": "stdout",
+                    "text": execution_data["stdout"]
+                })
+                
+            # Add stderr output
+            if execution_data.get("stderr"):
+                cell_outputs.append({
+                    "output_type": "stream",
+                    "name": "stderr",
+                    "text": execution_data["stderr"]
+                })
+                
+            # Add result output
+            if execution_data.get("result"):
+                cell_outputs.append({
+                    "output_type": "execute_result",
+                    "execution_count": execution_data.get("execution_count", 1),
+                    "data": {"text/plain": execution_data["result"]},
+                    "metadata": {}
+                })
+                
+            # Create new cell
+            new_cell = {
+                "cell_type": "code",
+                "execution_count": execution_data.get("execution_count", 1),
+                "metadata": {},
+                "source": execution_data["code"],
+                "outputs": cell_outputs
+            }
+            
+            # Add cell to notebook
+            notebook_data["content"]["cells"].append(new_cell)
+            
+            # Save updated notebook
+            print(f"[CODE-INTERPRETER] Saving updated notebook '{self.notebook_id}' with new cell.")
+            async with self.session.put(
+                f"/api/contents/{self.notebook_id}",
+                json=notebook_data,
+                params=self.params
+            ) as response:
+                response.raise_for_status()
+                print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' updated successfully with new cell.")
+                return True
+                
+        except Exception as e:
+            print(f"[CODE-INTERPRETER] Error appending to notebook: {e}")
+            return False
 
 
 async def execute_code_jupyter(
     base_url: str, chat_id: str, code: str, token: str = "", password: str = "", timeout: int = 60
 ) -> dict:
-    print(f"[CODE-INTERPRETER] execute_code_jupyter called with base_url='{base_url}', chat_id='{chat_id}', token='{token[:5]}...', password={'yes' if password else 'no'}, timeout={timeout}")
+    print(f"[CODE-INTERPRETER] execute_code_jupyter called with base_url='{base_url}', chat_id='{chat_id}', token='{token[:5] if token else ''}...', password={'yes' if password else 'no'}, timeout={timeout}")
     print(f"[CODE-INTERPRETER] Code to execute:\n---\n{code}\n---")
     start_time = time.time()
     async with JupyterCodeExecuter(
-        base_url, chat_id, code, token, password, timeout
+        base_url, code, chat_id, token, password, timeout
     ) as executor:
         result = await executor.run()
         final_result = result.model_dump()
