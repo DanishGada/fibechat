@@ -134,9 +134,6 @@ def upload_file(
                         "size": len(contents),
                         "data": file_metadata,
                     },
-                    "data": {
-                        "content": "",
-                    }
                 }
             ),
         )

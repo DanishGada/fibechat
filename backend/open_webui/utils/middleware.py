@@ -547,40 +547,24 @@ async def chat_completion_files_handler(
         request: Request, body: dict, user: UserModel
 ) -> tuple[dict, dict[str, list], str]:
     sources = []
-    filename = None
-    content_type = None
     context_string = ""
-    file_details = []
-
     if files := body.get("metadata", {}).get("files", None):
-        for file in files:
-            filename = file.get('filename') or file.get('name')
-            content_type = file.get('meta', {}).get('content_type', '')
-            file_id = file.get("id")
-            log.debug(f"[DIAG] Processing file: {filename}, content_type: {content_type}")
-            print("Sources Compute Here")
-            print(f"[DIAG] Building context string for {filename}")
-            file_details.append((f"{file_id}_{filename}", filename, content_type))  # Changed to tuple instead of set
+        file = files[0]
+        filename = file.get('filename') or file.get('name')
+        content_type = file.get('meta', {}).get('content_type', '')
+        if is_spreadsheet_file(filename,content_type):
 
-    # You can use the last file for checking type if needed
-    if len(file_details) == 0:
-        return body, {"sources": sources}, context_string
+            joined_file_paths = ", ".join(filename)
 
-    # Changed variable name from file_paths to file_details for consistency
-    if is_spreadsheet_file(file_details[0][1], file_details[0][2]):
-        # Create a list of file paths only
-        file_paths = [item[0] for item in file_details]
-        joined_file_paths = ", ".join(file_paths)
-
-        context_string += (
-            f"<instructions> To analyse all the contents of the file you will have to write code to read "
-            f"the contents of the file. The actual file(s) are accessible to you using the path(s): "
-            f"{joined_file_paths}. "
-        )
-        context_string += "Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
-        context_string += "Also Provide the code in the Code Interpreter tool format."
-        context_string += "<outputFiles>if the code execution gives output the files,images,etc will be accessible at '../../cache/images/{image_name}'</outputFiles>"
-    else:
+            context_string += (
+                f"<instructions> To analyse all the contents of the file you will have to write code to read "
+                f"the contents of the file. The actual file(s) are accessible to you using the path(s): "
+                f"{joined_file_paths}. "
+            )
+            context_string += "Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
+            context_string += "Also Provide the code in the Code Interpreter tool format."
+            context_string += "<outputFiles>if the code execution gives output the files,images,etc will be accessible at '../../cache/images/{image_name}'</outputFiles>"
+            return body, {"sources": sources}, context_string
         queries = []
         try:
             queries_response = await generate_queries(
@@ -883,26 +867,19 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     try:
         form_data, flags, context_string = await chat_completion_files_handler(request, form_data, user)
         if context_string != "":
-            prompt = get_last_user_message(form_data["messages"])
             form_data["messages"] = add_or_update_system_message(context_string, form_data["messages"])
-
         sources.extend(flags.get("sources", []))
     except Exception as e:
         log.exception(e)
 
     if len(sources) > 0:
+        context_string = ""
         for source_idx, source in enumerate(sources):
             if "document" in source:
                 for doc_idx, doc_context in enumerate(source["document"]):
-                    # Initialize truncated_content for each document to avoid undefined variable error
-                    truncated_content = doc_context
+                    context_string += f"<source><source_id>{source_idx + 1}</source_id><source_context>{doc_context}</source_context></source>\n"
 
-                    # Truncate CSV/XLSX content in source_context only
-                    filename = source.get('source', {}).get('name') or source.get('source', {}).get('file', {}).get(
-                        'filename') or ''
-                    content_type = source.get('source', {}).get('file', {}).get('meta', {}).get('content_type', '')
-                    file_id = source.get('source', {}).get('file', {}).get('id') or source.get('source', {}).get('id')
-                    print(f"[DIAG] Processing file: {filename}, content_type: {content_type}, file_id: {file_id}")
+        context_string = context_string.strip()
         prompt = get_last_user_message(form_data["messages"])
 
         if prompt is None:
