@@ -31,13 +31,13 @@ class JupyterCodeExecuter:
     """
 
     def __init__(
-        self,
-        base_url: str,
-        code: str,
-        chat_id: str = "",
-        token: str = "",
-        password: str = "",
-        timeout: int = 60,
+            self,
+            base_url: str,
+            code: str,
+            chat_id: str = "",
+            token: str = "",
+            password: str = "",
+            timeout: int = 60,
     ):
         """
         :param base_url: Jupyter server URL (e.g., "http://localhost:8888")
@@ -47,11 +47,12 @@ class JupyterCodeExecuter:
         :param password: Jupyter password (optional)
         :param timeout: WebSocket timeout in seconds (default: 60s)
         """
-        print(f"[CODE-INTERPRETER] Initializing JupyterCodeExecuter for base_url: {base_url}, timeout: {timeout}, chat_id: {chat_id}")
+        print(
+            f"[CODE-INTERPRETER] Initializing JupyterCodeExecuter for base_url: {base_url}, timeout: {timeout}, chat_id: {chat_id}")
         self.base_url = base_url.rstrip("/")
         self.code = code
         self.chat_id = chat_id
-        self.notebook_id = f"notebook-{chat_id}.ipynb" if chat_id else None # Construct notebook ID string
+        self.notebook_id = f"notebook-{chat_id}.ipynb" if chat_id else None  # Construct notebook ID string
         print("[CODE-INTERPRETER] self.notebook_id:", self.notebook_id)
         self.token = token
         self.password = password
@@ -69,7 +70,7 @@ class JupyterCodeExecuter:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         print("[CODE-INTERPRETER] Exiting context manager.")
         start_time = time.time()
-        
+
         # Don't delete the kernel if it's associated with a notebook - preserve it for future executions
         if self.kernel_id and not self.notebook_id:
             try:
@@ -77,7 +78,7 @@ class JupyterCodeExecuter:
                 delete_url = f"/api/kernels/{self.kernel_id}"
                 print(f"[CODE-INTERPRETER] Making API call: DELETE {delete_url} with params: {self.params}")
                 async with self.session.delete(
-                    delete_url, params=self.params
+                        delete_url, params=self.params
                 ) as response:
                     response.raise_for_status()
                     print(f"[CODE-INTERPRETER] Kernel {self.kernel_id} deleted successfully.")
@@ -86,7 +87,7 @@ class JupyterCodeExecuter:
                 print(f"[CODE-INTERPRETER] Error deleting kernel {self.kernel_id}: {err}")
         else:
             print(f"[CODE-INTERPRETER] Preserving kernel {self.kernel_id} for notebook {self.notebook_id}")
-            
+
         await self.session.close()
         end_time = time.time()
         print(f"[CODE-INTERPRETER] Context manager exit took {end_time - start_time:.4f} seconds.")
@@ -127,10 +128,11 @@ class JupyterCodeExecuter:
             logger.exception("execute code failed, %s", err)
             print(f"[CODE-INTERPRETER] Error during run: {err}")
             self.result.stderr = f"Error: {err}"
-        
+
         total_end_time = time.time()
         print(f"[CODE-INTERPRETER] Code execution run finished in {total_end_time - total_start_time:.4f} seconds.")
-        print(f"[CODE-INTERPRETER] Final Result - STDOUT: '{self.result.stdout}', STDERR: '{self.result.stderr}', RESULT: '{self.result.result}'")
+        print(
+            f"[CODE-INTERPRETER] Final Result - STDOUT: '{self.result.stdout}', STDERR: '{self.result.stderr}', RESULT: '{self.result.result}'")
         return self.result
 
     async def sign_in(self) -> None:
@@ -146,20 +148,28 @@ class JupyterCodeExecuter:
                     response.raise_for_status()
                     xsrf_token = response.cookies.get("_xsrf")
                     if not xsrf_token:
-                         print("[CODE-INTERPRETER] _xsrf token not found in cookies.")
-                         raise ValueError("_xsrf token not found")
+                        print("[CODE-INTERPRETER] _xsrf token not found in cookies.")
+                        raise ValueError("_xsrf token not found")
                     xsrf_token_value = xsrf_token.value
                     print(f"[CODE-INTERPRETER] Received _xsrf token: {xsrf_token_value}")
                     self.session.cookie_jar.update_cookies(response.cookies)
                     self.session.headers.update({"X-XSRFToken": xsrf_token_value})
-                
+
                 # Post login credentials
                 login_data = {"_xsrf": xsrf_token_value, "password": self.password}
-                print(f"[CODE-INTERPRETER] Making API call: POST /login with data: { {k: (v[:10] + '...' if k == 'password' else v) for k, v in login_data.items()} }") # Avoid logging full password
+                # Safe logging that handles different data types
+                safe_data = {}
+                for k, v in login_data.items():
+                    if k == "password":
+                        safe_data[k] = "********"  # Replace with asterisks instead of slicing
+                    else:
+                        safe_data[k] = v
+                print(f"[CODE-INTERPRETER] Making API call: POST /login with data: {safe_data}")
+
                 async with self.session.post(
-                    "/login",
-                    data=login_data,
-                    allow_redirects=False,
+                        "/login",
+                        data=login_data,
+                        allow_redirects=False,
                 ) as response:
                     response.raise_for_status()
                     print("[CODE-INTERPRETER] Password authentication successful.")
@@ -170,9 +180,11 @@ class JupyterCodeExecuter:
 
         # token authentication
         if self.token:
-            print(f"[CODE-INTERPRETER] Using token authentication. Token: {self.token[:5]}...") # Log partial token
+            # Safely log partial token without slicing (in case it's not a string)
+            token_display = "******" if self.token else ""
+            print(f"[CODE-INTERPRETER] Using token authentication. Token: {token_display}")
             self.params.update({"token": self.token})
-        
+
         end_time = time.time()
         print(f"[CODE-INTERPRETER] sign_in process finished in {end_time - start_time:.4f} seconds.")
 
@@ -191,8 +203,8 @@ class JupyterCodeExecuter:
         try:
             # Try to get the notebook
             async with self.session.get(
-                f"/api/contents/{self.notebook_id}",
-                params=self.params
+                    f"/api/contents/{self.notebook_id}",
+                    params=self.params
             ) as response:
                 if response.status == 200:
                     print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' already exists.")
@@ -215,12 +227,12 @@ class JupyterCodeExecuter:
                             "cells": []
                         }
                     }
-                    
+
                     # Create the notebook
                     async with self.session.put(
-                        f"/api/contents/{self.notebook_id}",
-                        json=notebook_model,
-                        params=self.params
+                            f"/api/contents/{self.notebook_id}",
+                            json=notebook_model,
+                            params=self.params
                     ) as create_response:
                         create_response.raise_for_status()
                         print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' created successfully.")
@@ -228,7 +240,7 @@ class JupyterCodeExecuter:
                 else:
                     print(f"[CODE-INTERPRETER] Unexpected status code when checking notebook: {response.status}")
                     return None
-                    
+
         except Exception as e:
             print(f"[CODE-INTERPRETER] Error checking/creating notebook: {e}")
             return None
@@ -246,49 +258,57 @@ class JupyterCodeExecuter:
                 # Fetch kernel ID from active sessions
                 print(f"[CODE-INTERPRETER] Making API call: GET {session_url} with params: {self.params}")
                 async with self.session.get(
-                    session_url, params=self.params
+                        session_url, params=self.params
                 ) as response:
                     response.raise_for_status()
                     sessions = await response.json()
                     print(f"[CODE-INTERPRETER] Received {len(sessions)} active sessions.")
-                    
+
                     # First look for running sessions associated with our notebook
                     for session in sessions:
                         # Check if 'notebook' and 'path' keys exist and match
-                        if "notebook" in session and "path" in session["notebook"] and session["notebook"]["path"] == self.notebook_id:
+                        if "notebook" in session and "path" in session["notebook"] and session["notebook"][
+                            "path"] == self.notebook_id:
                             # Check if 'kernel' and 'id' keys exist
                             if "kernel" in session and "id" in session["kernel"]:
                                 # Check if kernel is actually alive by querying its status
                                 kernel_id = session["kernel"]["id"]
-                                print(f"[CODE-INTERPRETER] Found session with kernel {kernel_id} for notebook '{self.notebook_id}'. Checking if kernel is alive...")
-                                
+                                print(
+                                    f"[CODE-INTERPRETER] Found session with kernel {kernel_id} for notebook '{self.notebook_id}'. Checking if kernel is alive...")
+
                                 try:
                                     # Verify kernel is running
                                     async with self.session.get(
-                                        f"/api/kernels/{kernel_id}",
-                                        params=self.params
+                                            f"/api/kernels/{kernel_id}",
+                                            params=self.params
                                     ) as kernel_response:
                                         if kernel_response.status == 200:
                                             kernel_data = await kernel_response.json()
                                             if kernel_data.get("execution_state") != "dead":
                                                 self.kernel_id = kernel_id
-                                                print(f"[CODE-INTERPRETER] Verified kernel {self.kernel_id} is alive and will be reused.")
+                                                print(
+                                                    f"[CODE-INTERPRETER] Verified kernel {self.kernel_id} is alive and will be reused.")
                                                 found_existing_kernel = True
                                                 break
                                             else:
-                                                print(f"[CODE-INTERPRETER] Kernel {kernel_id} exists but is in 'dead' state. Will create a new kernel.")
+                                                print(
+                                                    f"[CODE-INTERPRETER] Kernel {kernel_id} exists but is in 'dead' state. Will create a new kernel.")
                                         else:
-                                            print(f"[CODE-INTERPRETER] Kernel {kernel_id} not found. Will create a new kernel.")
+                                            print(
+                                                f"[CODE-INTERPRETER] Kernel {kernel_id} not found. Will create a new kernel.")
                                 except Exception as kerr:
                                     print(f"[CODE-INTERPRETER] Error verifying kernel status: {kerr}")
                             else:
-                                print(f"[CODE-INTERPRETER] Session for '{self.notebook_id}' found, but kernel information is missing.")
+                                print(
+                                    f"[CODE-INTERPRETER] Session for '{self.notebook_id}' found, but kernel information is missing.")
 
                     if not found_existing_kernel:
-                        print(f"[CODE-INTERPRETER] No active kernel found for notebook '{self.notebook_id}'. Will create a new kernel.")
+                        print(
+                            f"[CODE-INTERPRETER] No active kernel found for notebook '{self.notebook_id}'. Will create a new kernel.")
 
             except Exception as e:
-                print(f"[CODE-INTERPRETER] Error fetching sessions or finding kernel for '{self.notebook_id}': {e}. Proceeding to create a new kernel.")
+                print(
+                    f"[CODE-INTERPRETER] Error fetching sessions or finding kernel for '{self.notebook_id}': {e}. Proceeding to create a new kernel.")
                 # Ensure we proceed to create a kernel if session check fails
 
         # If no existing kernel was found OR if notebook_id was None initially, create a new kernel
@@ -296,22 +316,24 @@ class JupyterCodeExecuter:
             print("[CODE-INTERPRETER] Creating a new kernel.")
             try:
                 # Prepare data for creating a new kernel, potentially associating with the notebook path
-                post_data = {"name": "python3"} # Specify kernel type, adjust if needed
+                post_data = {"name": "python3"}  # Specify kernel type, adjust if needed
                 if self.notebook_id:
-                     print(f"[CODE-INTERPRETER] Requesting new kernel (intended for notebook: {self.notebook_id})")
+                    print(f"[CODE-INTERPRETER] Requesting new kernel (intended for notebook: {self.notebook_id})")
 
-                print(f"[CODE-INTERPRETER] Making API call: POST {kernel_url} with params: {self.params} and data: {post_data}")
+                print(
+                    f"[CODE-INTERPRETER] Making API call: POST {kernel_url} with params: {self.params} and data: {post_data}")
                 async with self.session.post(
-                    url=kernel_url, params=self.params, json=post_data # Send data as JSON
+                        url=kernel_url, params=self.params, json=post_data  # Send data as JSON
                 ) as response:
                     response.raise_for_status()
                     kernel_data = await response.json()
                     self.kernel_id = kernel_data["id"]
                     print(f"[CODE-INTERPRETER] New kernel created successfully. Kernel ID: {self.kernel_id}")
-                    
+
                     # If a notebook_id exists, create a session to link the new kernel
                     if self.notebook_id:
-                        print(f"[CODE-INTERPRETER] Creating session for notebook '{self.notebook_id}' with new kernel '{self.kernel_id}'")
+                        print(
+                            f"[CODE-INTERPRETER] Creating session for notebook '{self.notebook_id}' with new kernel '{self.kernel_id}'")
                         session_post_data = {
                             "path": self.notebook_id,
                             "type": "notebook",
@@ -322,21 +344,26 @@ class JupyterCodeExecuter:
                             }
                         }
                         try:
-                            print(f"[CODE-INTERPRETER] Making API call: POST {session_url} with params: {self.params} and data: {session_post_data}")
-                            async with self.session.post(session_url, params=self.params, json=session_post_data) as session_response:
+                            print(
+                                f"[CODE-INTERPRETER] Making API call: POST {session_url} with params: {self.params} and data: {session_post_data}")
+                            async with self.session.post(session_url, params=self.params,
+                                                         json=session_post_data) as session_response:
                                 session_response.raise_for_status()
                                 session_data = await session_response.json()
-                                print(f"[CODE-INTERPRETER] Session created successfully for notebook '{self.notebook_id}'. Session ID: {session_data.get('id')}")
+                                print(
+                                    f"[CODE-INTERPRETER] Session created successfully for notebook '{self.notebook_id}'. Session ID: {session_data.get('id')}")
                         except Exception as session_err:
-                             print(f"[CODE-INTERPRETER] Warning: Failed to create session for notebook '{self.notebook_id}' after creating kernel: {session_err}")
-                             # Continue even if session creation fails, as the kernel exists
+                            print(
+                                f"[CODE-INTERPRETER] Warning: Failed to create session for notebook '{self.notebook_id}' after creating kernel: {session_err}")
+                            # Continue even if session creation fails, as the kernel exists
 
             except Exception as e:
                 print(f"[CODE-INTERPRETER] Kernel creation failed: {e}")
-                raise # Re-raise the exception if kernel creation fails
+                raise  # Re-raise the exception if kernel creation fails
 
         end_time = time.time()
-        print(f"[CODE-INTERPRETER] Kernel initialization finished in {end_time - start_time:.4f} seconds. Using Kernel ID: {self.kernel_id}")
+        print(
+            f"[CODE-INTERPRETER] Kernel initialization finished in {end_time - start_time:.4f} seconds. Using Kernel ID: {self.kernel_id}")
 
     def init_ws(self) -> (str, dict):
         print("[CODE-INTERPRETER] Initializing WebSocket connection details.")
@@ -346,7 +373,7 @@ class JupyterCodeExecuter:
         websocket_url = f"{ws_base}/api/kernels/{self.kernel_id}/channels{ws_params_str if len(self.params) > 0 else ''}"
         ws_headers = {}
         if self.password and not self.token:
-             # Extract cookies carefully
+            # Extract cookies carefully
             cookie_header = "; ".join(
                 [f"{cookie.key}={cookie.value}" for cookie in self.session.cookie_jar if cookie.key]
             )
@@ -356,14 +383,19 @@ class JupyterCodeExecuter:
                 "Cookie": cookie_header,
             }
             if xsrf_header:
-                 ws_headers["X-XSRFToken"] = xsrf_header
-            print(f"[CODE-INTERPRETER] Using password auth headers for WebSocket: { {k: (v[:10] + '...' if k == 'Cookie' else v) for k, v in ws_headers.items()} }") # Avoid logging full cookie
+                ws_headers["X-XSRFToken"] = xsrf_header
+
+            # Safe logging of headers (hide cookie content)
+            safe_headers = ws_headers.copy()
+            if "Cookie" in safe_headers:
+                safe_headers["Cookie"] = "****COOKIE-HIDDEN****"
+            print(f"[CODE-INTERPRETER] Using password auth headers for WebSocket: {safe_headers}")
         else:
             print("[CODE-INTERPRETER] Using token auth (or no auth) for WebSocket.")
 
         end_time = time.time()
         print(f"[CODE-INTERPRETER] WebSocket URL: {websocket_url}")
-        print(f"[CODE-INTERPRETER] WebSocket Headers: {ws_headers}")
+        # Don't log headers again to avoid duplication
         print(f"[CODE-INTERPRETER] WebSocket initialization details prepared in {end_time - start_time:.4f} seconds.")
         return websocket_url, ws_headers
 
@@ -376,13 +408,14 @@ class JupyterCodeExecuter:
         # execute
         try:
             async with websockets.connect(
-                websocket_url, additional_headers=ws_headers, open_timeout=self.timeout # Add open_timeout
+                    websocket_url, additional_headers=ws_headers, open_timeout=self.timeout  # Add open_timeout
             ) as ws:
                 print("[CODE-INTERPRETER] WebSocket connection established.")
                 await self.execute_in_jupyter(ws)
         except websockets.exceptions.InvalidStatusCode as e:
-             print(f"[CODE-INTERPRETER] WebSocket connection failed with status code: {e.status_code}. Headers: {e.headers}")
-             raise Exception(f"WebSocket connection failed: Status {e.status_code}") from e
+            print(
+                f"[CODE-INTERPRETER] WebSocket connection failed with status code: {e.status_code}. Headers: {e.headers}")
+            raise Exception(f"WebSocket connection failed: Status {e.status_code}") from e
         except Exception as e:
             print(f"[CODE-INTERPRETER] WebSocket connection or execution failed: {e}")
             raise
@@ -400,7 +433,7 @@ class JupyterCodeExecuter:
                 "msg_type": "execute_request",
                 "username": "user",
                 "session": uuid.uuid4().hex,
-                "date": "", # Consider adding datetime.utcnow().isoformat() + "Z"
+                "date": "",  # Consider adding datetime.utcnow().isoformat() + "Z"
                 "version": "5.3",
             },
             "parent_header": {},
@@ -417,7 +450,7 @@ class JupyterCodeExecuter:
         }
         print(f"[CODE-INTERPRETER] Sending execute_request (msg_id: {msg_id}): {json.dumps(exec_request, indent=2)}")
         await ws.send(json.dumps(exec_request))
-        
+
         # parse message
         stdout, stderr, result = "", "", []
         execution_count = None
@@ -432,9 +465,10 @@ class JupyterCodeExecuter:
 
                 # msg id not match, skip
                 if message_data.get("parent_header", {}).get("msg_id") != msg_id:
-                    print(f"[CODE-INTERPRETER] Skipping message with mismatched parent_header msg_id: {message_data.get('parent_header', {}).get('msg_id')}")
+                    print(
+                        f"[CODE-INTERPRETER] Skipping message with mismatched parent_header msg_id: {message_data.get('parent_header', {}).get('msg_id')}")
                     continue
-                
+
                 # check message type
                 msg_type = message_data.get("header", {}).get("msg_type")
                 print(f"[CODE-INTERPRETER] Processing message of type: {msg_type}")
@@ -451,12 +485,12 @@ class JupyterCodeExecuter:
                         content = message_data.get("content", {})
                         data = content.get("data", {})
                         print(f"[CODE-INTERPRETER] Execute result/Display data: {data}")
-                        
+
                         # Get execution count if available
                         if "execution_count" in content and execution_count is None:
                             execution_count = content["execution_count"]
                             print(f"[CODE-INTERPRETER] Execution count: {execution_count}")
-                            
+
                         if "image/png" in data:
                             img_data = f"data:image/png;base64,{data['image/png']}"
                             print(f"[CODE-INTERPRETER] Appending image data (first 20 chars): {img_data[:20]}...")
@@ -481,24 +515,24 @@ class JupyterCodeExecuter:
                             execution_count = message_data["content"]["execution_count"]
                             print(f"[CODE-INTERPRETER] Execution count from input: {execution_count}")
                     case _:
-                         print(f"[CODE-INTERPRETER] Unhandled message type: {msg_type}")
+                        print(f"[CODE-INTERPRETER] Unhandled message type: {msg_type}")
 
             except asyncio.TimeoutError:
                 print(f"[CODE-INTERPRETER] Timeout waiting for message after {self.timeout} seconds.")
                 stderr += "\nExecution timed out."
                 break
             except websockets.exceptions.ConnectionClosedOK:
-                 print("[CODE-INTERPRETER] WebSocket connection closed normally.")
-                 break
+                print("[CODE-INTERPRETER] WebSocket connection closed normally.")
+                break
             except websockets.exceptions.ConnectionClosedError as e:
-                 print(f"[CODE-INTERPRETER] WebSocket connection closed with error: Code={e.code}, Reason='{e.reason}'")
-                 stderr += f"\nWebSocket connection closed unexpectedly (Code: {e.code})."
-                 break
+                print(f"[CODE-INTERPRETER] WebSocket connection closed with error: Code={e.code}, Reason='{e.reason}'")
+                stderr += f"\nWebSocket connection closed unexpectedly (Code: {e.code})."
+                break
             except Exception as e:
-                 print(f"[CODE-INTERPRETER] Error processing message: {e}")
-                 stderr += f"\nError processing kernel message: {e}"
-                 # Decide whether to break or continue based on the error type
-                 break # Safer to break on unexpected errors
+                print(f"[CODE-INTERPRETER] Error processing message: {e}")
+                stderr += f"\nError processing kernel message: {e}"
+                # Decide whether to break or continue based on the error type
+                break  # Safer to break on unexpected errors
 
         self.result.stdout = stdout.strip()
         self.result.stderr = stderr.strip()
@@ -508,7 +542,7 @@ class JupyterCodeExecuter:
         print(f"[CODE-INTERPRETER] Parsed STDOUT: '{self.result.stdout}'")
         print(f"[CODE-INTERPRETER] Parsed STDERR: '{self.result.stderr}'")
         print(f"[CODE-INTERPRETER] Parsed RESULT: '{self.result.result}'")
-        
+
         # Append executed code to the notebook
         if self.notebook_id:
             await self.append_to_notebook({
@@ -522,30 +556,30 @@ class JupyterCodeExecuter:
     async def append_to_notebook(self, execution_data: Dict) -> bool:
         """
         Append code and its output to the notebook
-        
+
         Args:
             execution_data: Dict containing code, stdout, stderr, result
-            
+
         Returns:
             True if successful, False otherwise
         """
         if not self.notebook_id:
             print("[CODE-INTERPRETER] No notebook_id specified, skipping append to notebook.")
             return False
-            
+
         try:
             # Get current notebook content
             print(f"[CODE-INTERPRETER] Getting current content of notebook '{self.notebook_id}'.")
             async with self.session.get(
-                f"/api/contents/{self.notebook_id}",
-                params=self.params
+                    f"/api/contents/{self.notebook_id}",
+                    params=self.params
             ) as response:
                 response.raise_for_status()
                 notebook_data = await response.json()
-                
+
             # Prepare cell outputs
             cell_outputs = []
-            
+
             # Add stdout output
             if execution_data.get("stdout"):
                 cell_outputs.append({
@@ -553,7 +587,7 @@ class JupyterCodeExecuter:
                     "name": "stdout",
                     "text": execution_data["stdout"]
                 })
-                
+
             # Add stderr output
             if execution_data.get("stderr"):
                 cell_outputs.append({
@@ -561,7 +595,7 @@ class JupyterCodeExecuter:
                     "name": "stderr",
                     "text": execution_data["stderr"]
                 })
-                
+
             # Add result output
             if execution_data.get("result"):
                 cell_outputs.append({
@@ -570,7 +604,7 @@ class JupyterCodeExecuter:
                     "data": {"text/plain": execution_data["result"]},
                     "metadata": {}
                 })
-                
+
             # Create new cell
             new_cell = {
                 "cell_type": "code",
@@ -579,34 +613,35 @@ class JupyterCodeExecuter:
                 "source": execution_data["code"],
                 "outputs": cell_outputs
             }
-            
+
             # Add cell to notebook
             notebook_data["content"]["cells"].append(new_cell)
-            
+
             # Save updated notebook
             print(f"[CODE-INTERPRETER] Saving updated notebook '{self.notebook_id}' with new cell.")
             async with self.session.put(
-                f"/api/contents/{self.notebook_id}",
-                json=notebook_data,
-                params=self.params
+                    f"/api/contents/{self.notebook_id}",
+                    json=notebook_data,
+                    params=self.params
             ) as response:
                 response.raise_for_status()
                 print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' updated successfully with new cell.")
                 return True
-                
+
         except Exception as e:
             print(f"[CODE-INTERPRETER] Error appending to notebook: {e}")
             return False
 
 
 async def execute_code_jupyter(
-    base_url: str, chat_id: str, code: str, token: str = "", password: str = "", timeout: int = 60
+        base_url: str, chat_id: str, code: str, token: str = "", password: str = "", timeout: int = 60
 ) -> dict:
-    print(f"[CODE-INTERPRETER] execute_code_jupyter called with base_url='{base_url}', chat_id='{chat_id}', token='{token[:5] if token else ''}...', password={'yes' if password else 'no'}, timeout={timeout}")
+    print(
+        f"[CODE-INTERPRETER] execute_code_jupyter called with base_url='{base_url}', chat_id='{chat_id}', token='{token[:5] if token else ''}...', password={'yes' if password else 'no'}, timeout={timeout}")
     print(f"[CODE-INTERPRETER] Code to execute:\n---\n{code}\n---")
     start_time = time.time()
     async with JupyterCodeExecuter(
-        base_url, code, chat_id, token, password, timeout
+            base_url, code, chat_id, token, password, timeout
     ) as executor:
         result = await executor.run()
         final_result = result.model_dump()
