@@ -96,6 +96,7 @@ def dev(
         port=port,
         reload=reload,
         forwarded_allow_ips="*",
+        log_level="warning",
     )
 
 

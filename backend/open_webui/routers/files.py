@@ -1,10 +1,12 @@
 import logging
 import os
+import time
 import uuid
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Optional
 from urllib.parse import quote
+import pandas as pd
 
 from fastapi import (
     APIRouter,
@@ -28,11 +30,13 @@ from open_webui.models.files import (
 from open_webui.models.knowledge import Knowledges
 
 from open_webui.routers.knowledge import get_knowledge, get_knowledge_list
-from open_webui.routers.retrieval import ProcessFileForm, process_file
+from open_webui.routers.retrieval import ProcessFileForm, process_file, process_csv_file
 from open_webui.routers.audio import transcribe
 from open_webui.storage.provider import Storage
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from pydantic import BaseModel
+from open_webui.utils.file_contents import is_spreadsheet_file
+
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
@@ -86,16 +90,37 @@ def upload_file(
     file_metadata: dict = {},
     process: bool = Query(True),
 ):
+    print(f"[DEBUG] Starting file upload: {file.filename}")
+    print(f"[DEBUG] Content type: {file.content_type}")
+    print(f"[DEBUG] File metadata: {file_metadata}")
+    print(f"[DEBUG] Process flag: {process}")
     log.info(f"file.content_type: {file.content_type}")
     try:
+        print(f"[DEBUG] User ID: {user.id}")
         unsanitized_filename = file.filename
+        print(f"[DEBUG] Unsanitized filename: {unsanitized_filename}")
         filename = os.path.basename(unsanitized_filename)
+        print(f"[DEBUG] Sanitized filename: {filename}")
 
         # replace filename with uuid
         id = str(uuid.uuid4())
+        print(f"[DEBUG] Generated UUID: {id}")
         name = filename
+        print(f"[DEBUG] Original name: {name}")
         filename = f"{id}_{filename}"
+        print(f"filename: {filename}")
+        print(f"[DEBUG] Full filename with UUID: {filename}")
+
+        print(f"[DEBUG] Before Storage.upload_file()")
         contents, file_path = Storage.upload_file(file.file, filename)
+        print(f"file_path: {file_path}")
+        print(f"[DEBUG] After Storage.upload_file()")
+        print(f"[DEBUG] File contents length: {len(contents)}")
+        print(f"[DEBUG] File path: {file_path}")
+
+        print(f"[DEBUG] Creating file_item object")
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        print(f"[DEBUG] file_ext - {file_ext}")
 
         file_item = Files.insert_new_file(
             user.id,
@@ -113,51 +138,95 @@ def upload_file(
                 }
             ),
         )
+        print(f"[DEBUG] File item created: {file_item.id if file_item else 'None'}")
+
         if process:
+            print(f"[DEBUG] Process flag is True, beginning processing")
             try:
+                print(f"[DEBUG] Content type for processing: {file.content_type}")
                 if file.content_type in [
                     "audio/mpeg",
                     "audio/wav",
                     "audio/ogg",
                     "audio/x-m4a",
                 ]:
+                    print(f"[DEBUG] Audio file detected, preparing to transcribe")
                     file_path = Storage.get_file(file_path)
+                    print(f"[DEBUG] Retrieved file path for transcription: {file_path}")
                     result = transcribe(request, file_path)
-
+                    print(f"[DEBUG] Transcription result: {result.get('text', '')[:50]}...")
+                    start_time = time.time()
+                    print(f"[DEBUG] Starting CSV/Excel processing at {start_time}")
                     process_file(
                         request,
                         ProcessFileForm(file_id=id, content=result.get("text", "")),
                         user=user,
                     )
+                    end_time = time.time()
+                    processing_time = end_time - start_time
+                    print(f"[DEBUG] CSV/Excel processing completed in {processing_time:.2f} seconds")
+                    log.info(f"File {id} ({filename}) processed in {processing_time:.2f} seconds")
+
+                    print(f"[DEBUG] Audio file processed successfully")
+                        # Log detailed timing information
+                    if processing_time > 10:
+                        log.warning(f"CSV/Excel processing took longer than expected: {processing_time:.2f}s for file {filename} (id: {id})")
+                ## add handling for csv and xlsx or xlx
+                elif is_spreadsheet_file(filename, file.content_type):
+                    print(f"[DEBUG] CSV or Excel file detected, processing")
+                    start_time = time.time()
+                    print(f"[DEBUG] Starting CSV/Excel processing at {start_time}")
+                    process_csv_file(request, ProcessFileForm(file_id=id), user=user)
+                    print(f"[DEBUG] CSV or Excel file processed successfully")
+                    end_time = time.time()
+                    processing_time = end_time - start_time
+                    print(f"[DEBUG] CSV/Excel processing completed in {processing_time:.2f} seconds")
+                    log.info(f"File {id} ({filename}) processed in {processing_time:.2f} seconds")
+
+                    print(f"[DEBUG] Audio file processed successfully")
+                        # Log detailed timing information
+                    if processing_time > 10:
+                        log.warning(f"CSV/Excel processing took longer than expected: {processing_time:.2f}s for file {filename} (id: {id})")
                 elif file.content_type not in ["image/png", "image/jpeg", "image/gif"]:
+                    print(f"[DEBUG] Non-image file detected, processing")
                     process_file(request, ProcessFileForm(file_id=id), user=user)
 
-                file_item = Files.get_file_by_id(id=id)
+print(f"[DEBUG] Non-image file processed successfully")
+                    file_item = Files.get_file_by_id(id=id)
+                    print(f"[DEBUG] Retrieved updated file_item: {file_item.id if file_item else 'None'}")
+                else:
+                    print(f"[DEBUG] Image file detected, skipping processing")
             except Exception as e:
+                print(f"[DEBUG] Error during processing: {str(e)}")
                 log.exception(e)
                 log.error(f"Error processing file: {file_item.id}")
+                print(f"[DEBUG] Creating error response for file_item")
                 file_item = FileModelResponse(
                     **{
                         **file_item.model_dump(),
                         "error": str(e.detail) if hasattr(e, "detail") else str(e),
                     }
                 )
+                print(f"[DEBUG] Error response created")
 
+        print(f"[DEBUG] Preparing to return response")
         if file_item:
+            print(f"[DEBUG] Returning successful file_item response")
             return file_item
         else:
+            print(f"[DEBUG] No file_item, raising error")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ERROR_MESSAGES.DEFAULT("Error uploading file"),
             )
 
     except Exception as e:
+        print(f"[DEBUG] Uncaught exception: {str(e)}")
         log.exception(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT(e),
         )
-
 
 ############################
 # List Files

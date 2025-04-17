@@ -56,7 +56,7 @@
 									($i18n.language === 'dg-DG'
 										? `/doge.png`
 										: `${WEBUI_BASE_URL}/static/favicon.png`)}
-								class=" size-[2.7rem] rounded-full border-[1px] border-gray-100 dark:border-none"
+								class=" size-[5.0rem] rounded-full border-[1px] border-gray-100 dark:border-none"
 								alt="logo"
 								draggable="false"
 							/>
@@ -117,7 +117,7 @@
 						{/if}
 					{:else}
 						<div class=" font-medium text-gray-400 dark:text-gray-500 line-clamp-1 font-p">
-							{$i18n.t('How can I help you today?')}
+							{$i18n.t('Fibe user, How can I help you today?')}
 						</div>
 					{/if}
 				</div>

@@ -420,7 +420,6 @@ def get_sources_from_files(
     relevant_contexts = []
 
     for file in files:
-
         context = None
         if file.get("docs"):
             # BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL

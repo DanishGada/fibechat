@@ -17,10 +17,8 @@ import ast
 from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor
 
-
 from fastapi import Request, HTTPException
 from starlette.responses import Response, StreamingResponse
-
 
 from open_webui.models.chats import Chats
 from open_webui.models.users import Users
@@ -44,13 +42,11 @@ from open_webui.routers.pipelines import (
 
 from open_webui.utils.webhook import post_webhook
 
-
 from open_webui.models.users import UserModel
 from open_webui.models.functions import Functions
 from open_webui.models.models import Models
 
 from open_webui.retrieval.utils import get_sources_from_files
-
 
 from open_webui.utils.chat import generate_chat_completion
 from open_webui.utils.task import (
@@ -75,6 +71,7 @@ from open_webui.utils.filter import (
     process_filter_functions,
 )
 from open_webui.utils.code_interpreter import execute_code_jupyter
+from open_webui.utils.file_contents import is_spreadsheet_file
 
 from open_webui.tasks import create_task
 
@@ -91,14 +88,13 @@ from open_webui.env import (
 )
 from open_webui.constants import TASKS
 
-
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 
 async def chat_completion_tools_handler(
-    request: Request, body: dict, extra_params: dict, user: UserModel, models, tools
+        request: Request, body: dict, extra_params: dict, user: UserModel, models, tools
 ) -> tuple[dict, dict]:
     async def get_content_from_response(response) -> Optional[str]:
         content = None
@@ -171,7 +167,7 @@ async def chat_completion_tools_handler(
             return body, {}
 
         try:
-            content = content[content.find("{") : content.rfind("}") + 1]
+            content = content[content.find("{"): content.rfind("}") + 1]
             if not content:
                 raise Exception("No JSON object found in the response")
 
@@ -291,7 +287,7 @@ async def chat_completion_tools_handler(
 
 
 async def chat_web_search_handler(
-    request: Request, form_data: dict, extra_params: dict, user
+        request: Request, form_data: dict, extra_params: dict, user
 ):
     event_emitter = extra_params["__event_emitter__"]
     await event_emitter(
@@ -472,7 +468,7 @@ async def chat_web_search_handler(
 
 
 async def chat_image_generation_handler(
-    request: Request, form_data: dict, extra_params: dict, user
+        request: Request, form_data: dict, extra_params: dict, user
 ):
     __event_emitter__ = extra_params["__event_emitter__"]
     await __event_emitter__(
@@ -573,11 +569,27 @@ async def chat_image_generation_handler(
 
 
 async def chat_completion_files_handler(
-    request: Request, body: dict, user: UserModel
-) -> tuple[dict, dict[str, list]]:
+        request: Request, body: dict, user: UserModel
+) -> tuple[dict, dict[str, list], str]:
     sources = []
-
+    context_string = ""
     if files := body.get("metadata", {}).get("files", None):
+        file = files[0]
+        filename = file.get('filename') or file.get('name')
+        content_type = file.get('meta', {}).get('content_type', '')
+        if is_spreadsheet_file(filename,content_type):
+
+            joined_file_paths = ", ".join(filename)
+
+            context_string += (
+                f"<instructions> To analyse all the contents of the file you will have to write code to read "
+                f"the contents of the file. The actual file(s) are accessible to you using the path(s): "
+                f"{joined_file_paths}. "
+            )
+            context_string += "Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
+            context_string += "Also Provide the code in the Code Interpreter tool format."
+            context_string += "<outputFiles>if the code execution gives output the files,images,etc will be accessible at '../../cache/images/{image_name}'</outputFiles>"
+            return body, {"sources": sources}, context_string
         queries = []
         try:
             queries_response = await generate_queries(
@@ -636,7 +648,7 @@ async def chat_completion_files_handler(
 
         log.debug(f"rag_contexts:sources: {sources}")
 
-    return body, {"sources": sources}
+    return body, {"sources": sources}, context_string
 
 
 def apply_params_to_form_data(form_data, model):
@@ -683,7 +695,6 @@ def apply_params_to_form_data(form_data, model):
 
 
 async def process_chat_payload(request, form_data, user, metadata, model):
-
     form_data = apply_params_to_form_data(form_data, model)
     log.debug(f"form_data: {form_data}")
 
@@ -880,12 +891,13 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 log.exception(e)
 
     try:
-        form_data, flags = await chat_completion_files_handler(request, form_data, user)
+        form_data, flags, context_string = await chat_completion_files_handler(request, form_data, user)
+        if context_string != "":
+            form_data["messages"] = add_or_update_system_message(context_string, form_data["messages"])
         sources.extend(flags.get("sources", []))
     except Exception as e:
         log.exception(e)
 
-    # If context is not empty, insert it into the messages
     if len(sources) > 0:
         context_string = ""
         citated_file_idx = {}
@@ -905,8 +917,8 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         if prompt is None:
             raise Exception("No user message found")
         if (
-            request.app.state.config.RELEVANCE_THRESHOLD == 0
-            and context_string.strip() == ""
+                request.app.state.config.RELEVANCE_THRESHOLD == 0
+                and context_string.strip() == ""
         ):
             log.debug(
                 f"With a 0 relevancy threshold for RAG, the context cannot be empty"
@@ -915,6 +927,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         # Workaround for Ollama 2.0+ system prompt issue
         # TODO: replace with add_or_update_system_message
         if model.get("owned_by") == "ollama":
+            print("[DIAG] Using Ollama workaround for system prompt")
             form_data["messages"] = prepend_to_first_user_message_content(
                 rag_template(
                     request.app.state.config.RAG_TEMPLATE, context_string, prompt
@@ -922,6 +935,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 form_data["messages"],
             )
         else:
+            print("[DIAG] Adding context as system message")
             form_data["messages"] = add_or_update_system_message(
                 rag_template(
                     request.app.state.config.RAG_TEMPLATE, context_string, prompt
@@ -952,7 +966,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
 
 async def process_chat_response(
-    request, response, form_data, user, metadata, model, events, tasks
+        request, response, form_data, user, metadata, model, events, tasks
 ):
     async def background_tasks_handler():
         message_map = Chats.get_messages_by_chat_id(metadata["chat_id"])
@@ -985,8 +999,8 @@ async def process_chat_response(
                                 title_string = ""
 
                             title_string = title_string[
-                                title_string.find("{") : title_string.rfind("}") + 1
-                            ]
+                                           title_string.find("{"): title_string.rfind("}") + 1
+                                           ]
 
                             try:
                                 title = json.loads(title_string).get(
@@ -1040,8 +1054,8 @@ async def process_chat_response(
                             tags_string = ""
 
                         tags_string = tags_string[
-                            tags_string.find("{") : tags_string.rfind("}") + 1
-                        ]
+                                      tags_string.find("{"): tags_string.rfind("}") + 1
+                                      ]
 
                         try:
                             tags = json.loads(tags_string).get("tags", [])
@@ -1061,12 +1075,12 @@ async def process_chat_response(
     event_emitter = None
     event_caller = None
     if (
-        "session_id" in metadata
-        and metadata["session_id"]
-        and "chat_id" in metadata
-        and metadata["chat_id"]
-        and "message_id" in metadata
-        and metadata["message_id"]
+            "session_id" in metadata
+            and metadata["session_id"]
+            and "chat_id" in metadata
+            and metadata["chat_id"]
+            and "message_id" in metadata
+            and metadata["message_id"]
     ):
         event_emitter = get_event_emitter(metadata)
         event_caller = get_event_call(metadata)
@@ -1152,8 +1166,8 @@ async def process_chat_response(
 
     # Non standard response
     if not any(
-        content_type in response.headers["Content-Type"]
-        for content_type in ["text/event-stream", "application/x-ndjson"]
+            content_type in response.headers["Content-Type"]
+            for content_type in ["text/event-stream", "application/x-ndjson"]
     ):
         return response
 
@@ -1191,7 +1205,7 @@ async def process_chat_response(
         def split_content_and_whitespace(content):
             content_stripped = content.rstrip()
             original_whitespace = (
-                content[len(content_stripped) :]
+                content[len(content_stripped):]
                 if len(content) > len(content_stripped)
                 else ""
             )
@@ -1291,8 +1305,8 @@ async def process_chat_response(
                         if is_opening_code_block(content_stripped):
                             # Remove trailing backticks that would open a new block
                             content = (
-                                content_stripped.rstrip("`").rstrip()
-                                + original_whitespace
+                                    content_stripped.rstrip("`").rstrip()
+                                    + original_whitespace
                             )
                         else:
                             # Keep content as is - either closing backticks or no backticks
@@ -1386,11 +1400,11 @@ async def process_chat_response(
 
                             # Capture everything before and after the matched tag
                             before_tag = content[
-                                : match.start()
-                            ]  # Content before opening tag
+                                         : match.start()
+                                         ]  # Content before opening tag
                             after_tag = content[
-                                match.end() :
-                            ]  # Content after opening tag
+                                        match.end():
+                                        ]  # Content after opening tag
 
                             # Remove the start tag and after from the currently handling text block
                             content_blocks[-1]["content"] = content_blocks[-1][
@@ -1590,7 +1604,7 @@ async def process_chat_response(
                             continue
 
                         # Remove the prefix
-                        data = data[len("data:") :].strip()
+                        data = data[len("data:"):].strip()
 
                         try:
                             data = json.loads(data)
@@ -1656,7 +1670,7 @@ async def process_chat_response(
                                                 for (
                                                     response_tool_call
                                                 ) in response_tool_calls:
-                                                    if (
+                                                        if (
                                                         response_tool_call.get("index")
                                                         == tool_call_index
                                                     ):
@@ -1700,8 +1714,8 @@ async def process_chat_response(
                                     ) or delta.get("reasoning")
                                     if reasoning_content:
                                         if (
-                                            not content_blocks
-                                            or content_blocks[-1]["type"] != "reasoning"
+                                                not content_blocks
+                                                or content_blocks[-1]["type"] != "reasoning"
                                         ):
                                             reasoning_block = {
                                                 "type": "reasoning",
@@ -1727,13 +1741,13 @@ async def process_chat_response(
 
                                     if value:
                                         if (
-                                            content_blocks
-                                            and content_blocks[-1]["type"]
-                                            == "reasoning"
-                                            and content_blocks[-1]
-                                            .get("attributes", {})
-                                            .get("type")
-                                            == "reasoning_content"
+                                                content_blocks
+                                                and content_blocks[-1]["type"]
+                                                == "reasoning"
+                                                and content_blocks[-1]
+                                                .get("attributes", {})
+                                                .get("type")
+                                                == "reasoning_content"
                                         ):
                                             reasoning_block = content_blocks[-1]
                                             reasoning_block["ended_at"] = time.time()
@@ -1759,7 +1773,7 @@ async def process_chat_response(
                                             )
 
                                         content_blocks[-1]["content"] = (
-                                            content_blocks[-1]["content"] + value
+                                                content_blocks[-1]["content"] + value
                                         )
 
                                         if DETECT_REASONING:
@@ -1955,7 +1969,7 @@ async def process_chat_response(
                                     tool_result.remove(item)
 
                         if isinstance(tool_result, dict) or isinstance(
-                            tool_result, list
+                                tool_result, list
                         ):
                             tool_result = json.dumps(tool_result, indent=2)
 
@@ -2017,8 +2031,8 @@ async def process_chat_response(
                     retries = 0
 
                     while (
-                        content_blocks[-1]["type"] == "code_interpreter"
-                        and retries < MAX_RETRIES
+                            content_blocks[-1]["type"] == "code_interpreter"
+                            and retries < MAX_RETRIES
                     ):
                         await event_emitter(
                             {
@@ -2038,8 +2052,8 @@ async def process_chat_response(
                                 code = content_blocks[-1]["content"]
 
                                 if (
-                                    request.app.state.config.CODE_INTERPRETER_ENGINE
-                                    == "pyodide"
+                                        request.app.state.config.CODE_INTERPRETER_ENGINE
+                                        == "pyodide"
                                 ):
                                     output = await event_caller(
                                         {
@@ -2054,8 +2068,8 @@ async def process_chat_response(
                                         }
                                     )
                                 elif (
-                                    request.app.state.config.CODE_INTERPRETER_ENGINE
-                                    == "jupyter"
+                                        request.app.state.config.CODE_INTERPRETER_ENGINE
+                                        == "jupyter"
                                 ):
                                     output = await execute_code_jupyter(
                                         request.app.state.config.CODE_INTERPRETER_JUPYTER_URL,
@@ -2063,13 +2077,13 @@ async def process_chat_response(
                                         (
                                             request.app.state.config.CODE_INTERPRETER_JUPYTER_AUTH_TOKEN
                                             if request.app.state.config.CODE_INTERPRETER_JUPYTER_AUTH
-                                            == "token"
+                                               == "token"
                                             else None
                                         ),
                                         (
                                             request.app.state.config.CODE_INTERPRETER_JUPYTER_AUTH_PASSWORD
                                             if request.app.state.config.CODE_INTERPRETER_JUPYTER_AUTH
-                                            == "password"
+                                               == "password"
                                             else None
                                         ),
                                         request.app.state.config.CODE_INTERPRETER_JUPYTER_TIMEOUT,
