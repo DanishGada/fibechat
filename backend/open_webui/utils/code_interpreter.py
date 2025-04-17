@@ -97,11 +97,11 @@ class JupyterCodeExecuter:
         total_start_time = time.time()
         try:
             # Sign in
-            print("[CODE-INTERPRETER] Starting sign_in step.")
-            start_time = time.time()
-            await self.sign_in()
-            end_time = time.time()
-            print(f"[CODE-INTERPRETER] sign_in step finished in {end_time - start_time:.4f} seconds.")
+            # print("[CODE-INTERPRETER] Starting sign_in step.")
+            # start_time = time.time()
+            # await self.sign_in()
+            # end_time = time.time()
+            # print(f"[CODE-INTERPRETER] sign_in step finished in {end_time - start_time:.4f} seconds.")
 
             # Check/create notebook
             print("[CODE-INTERPRETER] Starting check_or_create_notebook step.")
