@@ -6,6 +6,7 @@ from open_webui.internal.db import Base, JSONField, get_db
 from open_webui.env import SRC_LOG_LEVELS
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import BigInteger, Column, String, Text, JSON
+from open_webui.utils.file_contents import is_spreadsheet_file
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
@@ -109,16 +110,17 @@ class FilesTable:
                 }
             )
             # TODO add handling for csv and xlsx only
-            try:
-                if file.data is None:
-                    file.data = {}
+            if is_spreadsheet_file(file.filename, file.data.get("content_type")):
+                try:
+                    if file.data is None:
+                        file.data = {}
 
-                if file.data.get('content'):
-                    file.data['content'] = ""
-                print("CLEAN file:", file)
-            except Exception as e:
-                log.exception(f"Error cleaning file data: {e}")
-                return None
+                    if file.data.get('content'):
+                        file.data['content'] = ""
+                    print("CLEAN file:", file)
+                except Exception as e:
+                    log.exception(f"Error cleaning file data: {e}")
+                    return None
 
             try:
                 result = File(**file.model_dump())
