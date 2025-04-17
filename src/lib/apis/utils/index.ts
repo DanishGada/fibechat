@@ -26,15 +26,32 @@ export const getGravatarUrl = async (token: string, email: string) => {
 export const executeCode = async (token: string, code: string) => {
 	let error = null;
 
+	// Extract chat_id from the current URL
+	let chat_id = null;
+	try {
+		const pathSegments = window.location.pathname.split('/');
+		// Assuming the chat_id is the last segment after '/c/'
+		if (pathSegments.length > 2 && pathSegments[pathSegments.length - 2] === 'c') {
+			chat_id = pathSegments[pathSegments.length - 1];
+		}
+	} catch (e) {
+		console.error("Could not extract chat_id from URL:", e);
+	}
+
+	console.log("Extracted chat_id:", chat_id); // Optional: for debugging
+
+	const payload = {
+		code: code,
+		...(chat_id && { chat_id: chat_id }) // Conditionally add chat_id if found
+	};
+
 	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/code/execute`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			Authorization: `Bearer ${token}`
 		},
-		body: JSON.stringify({
-			code: code
-		})
+		body: JSON.stringify(payload) // Send the payload with chat_id
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();
