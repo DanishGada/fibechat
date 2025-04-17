@@ -2,6 +2,7 @@ import logging
 import os
 import time
 import uuid
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Optional
 from urllib.parse import quote
@@ -109,7 +110,7 @@ def upload_file(
         filename = f"{id}_{filename}"
         print(f"filename: {filename}")
         print(f"[DEBUG] Full filename with UUID: {filename}")
-        
+
         print(f"[DEBUG] Before Storage.upload_file()")
         contents, file_path = Storage.upload_file(file.file, filename)
         print(f"file_path: {file_path}")
@@ -120,7 +121,7 @@ def upload_file(
         print(f"[DEBUG] Creating file_item object")
         file_ext = os.path.splitext(file.filename)[1].lower()
         print(f"[DEBUG] file_ext - {file_ext}")
-                
+
         file_item = Files.insert_new_file(
             user.id,
             FileForm(
@@ -138,7 +139,7 @@ def upload_file(
             ),
         )
         print(f"[DEBUG] File item created: {file_item.id if file_item else 'None'}")
-        
+
         if process:
             print(f"[DEBUG] Process flag is True, beginning processing")
             try:
@@ -165,7 +166,7 @@ def upload_file(
                     processing_time = end_time - start_time
                     print(f"[DEBUG] CSV/Excel processing completed in {processing_time:.2f} seconds")
                     log.info(f"File {id} ({filename}) processed in {processing_time:.2f} seconds")
-    
+
                     print(f"[DEBUG] Audio file processed successfully")
                         # Log detailed timing information
                     if processing_time > 10:
@@ -181,7 +182,7 @@ def upload_file(
                     processing_time = end_time - start_time
                     print(f"[DEBUG] CSV/Excel processing completed in {processing_time:.2f} seconds")
                     log.info(f"File {id} ({filename}) processed in {processing_time:.2f} seconds")
-    
+
                     print(f"[DEBUG] Audio file processed successfully")
                         # Log detailed timing information
                     if processing_time > 10:
@@ -189,7 +190,8 @@ def upload_file(
                 elif file.content_type not in ["image/png", "image/jpeg", "image/gif"]:
                     print(f"[DEBUG] Non-image file detected, processing")
                     process_file(request, ProcessFileForm(file_id=id), user=user)
-                    print(f"[DEBUG] Non-image file processed successfully")
+
+print(f"[DEBUG] Non-image file processed successfully")
                     file_item = Files.get_file_by_id(id=id)
                     print(f"[DEBUG] Retrieved updated file_item: {file_item.id if file_item else 'None'}")
                 else:
@@ -232,12 +234,58 @@ def upload_file(
 
 
 @router.get("/", response_model=list[FileModelResponse])
-async def list_files(user=Depends(get_verified_user)):
+async def list_files(user=Depends(get_verified_user), content: bool = Query(True)):
     if user.role == "admin":
         files = Files.get_files()
     else:
         files = Files.get_files_by_user_id(user.id)
+
+    if not content:
+        for file in files:
+            del file.data["content"]
+
     return files
+
+
+############################
+# Search Files
+############################
+
+
+@router.get("/search", response_model=list[FileModelResponse])
+async def search_files(
+    filename: str = Query(
+        ...,
+        description="Filename pattern to search for. Supports wildcards such as '*.txt'",
+    ),
+    content: bool = Query(True),
+    user=Depends(get_verified_user),
+):
+    """
+    Search for files by filename with support for wildcard patterns.
+    """
+    # Get files according to user role
+    if user.role == "admin":
+        files = Files.get_files()
+    else:
+        files = Files.get_files_by_user_id(user.id)
+
+    # Get matching files
+    matching_files = [
+        file for file in files if fnmatch(file.filename.lower(), filename.lower())
+    ]
+
+    if not matching_files:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No files found matching the pattern.",
+        )
+
+    if not content:
+        for file in matching_files:
+            del file.data["content"]
+
+    return matching_files
 
 
 ############################
