@@ -942,18 +942,18 @@ def process_file(
         step1_start = time.time()
         file = Files.get_file_by_id(form_data.file_id)
         step1_end = time.time()
-        print(f"Step 1: Get file by ID took {step1_end - step1_start:.4f} seconds")
+        print(f"[DEBUG] Step 1: Get file by ID took {step1_end - step1_start:.4f} seconds")
 
         # Step 2: Determine collection name
         step2_start = time.time()
         collection_name = form_data.collection_name
         if collection_name is None:
             collection_name = f"file-{file.id}"
-            print(f"Collection name not provided, generated: {collection_name}")
+            print(f"[DEBUG] Collection name not provided, generated: {collection_name}")
         else:
-            print(f"Using provided collection name: {collection_name}")
+            print(f"[DEBUG] Using provided collection name: {collection_name}")
         step2_end = time.time()
-        print(f"Step 2: Determine collection name took {step2_end - step2_start:.4f} seconds")
+        print(f"[DEBUG] Step 2: Determine collection name took {step2_end - step2_start:.4f} seconds")
 
         # Step 3: Process content based on conditions
         step3_start = time.time()
@@ -961,21 +961,21 @@ def process_file(
         text_content = ""
 
         if form_data.content:
-            print("Processing based on form_data.content")
+            print("[DEBUG] Processing based on form_data.content")
             # Update the content in the file
             # Usage: /files/{file_id}/data/content/update
             delete_start = time.time()
             try:
                 # /files/{file_id}/data/content/update
-                print(f"Attempting to delete existing collection: file-{file.id}")
+                print(f"[DEBUG] Attempting to delete existing collection: file-{file.id}")
                 VECTOR_DB_CLIENT.delete_collection(collection_name=f"file-{file.id}")
-                print(f"Successfully deleted collection: file-{file.id}")
+                print(f"[DEBUG] Successfully deleted collection: file-{file.id}")
             except Exception as delete_ex:
-                print(f"Could not delete collection file-{file.id} (might not exist or audio pipeline): {delete_ex}")
+                print(f"[DEBUG] Could not delete collection file-{file.id} (might not exist or audio pipeline): {delete_ex}")
                 # Audio file upload pipeline might not create a collection initially
                 pass
             delete_end = time.time()
-            print(f"  - Collection deletion attempt took {delete_end - delete_start:.4f} seconds")
+            print(f"[DEBUG]  - Collection deletion attempt took {delete_end - delete_start:.4f} seconds")
 
             doc_creation_start = time.time()
             docs = [
@@ -992,10 +992,10 @@ def process_file(
             ]
             text_content = form_data.content
             doc_creation_end = time.time()
-            print(f"  - Document creation from form_data.content took {doc_creation_end - doc_creation_start:.4f} seconds")
+            print(f"[DEBUG] - Document creation from form_data.content took {doc_creation_end - doc_creation_start:.4f} seconds")
 
         elif form_data.collection_name:
-            print("Processing based on form_data.collection_name (checking existing vector DB)")
+            print("[DEBUG] Processing based on form_data.collection_name (checking existing vector DB)")
             # Check if the file has already been processed and save the content
             # Usage: /knowledge/{id}/file/add, /knowledge/{id}/file/update
             query_start = time.time()
@@ -1003,11 +1003,11 @@ def process_file(
                 collection_name=f"file-{file.id}", filter={"file_id": file.id}
             )
             query_end = time.time()
-            print(f"  - Vector DB query took {query_end - query_start:.4f} seconds")
+            print(f"[DEBUG]  - Vector DB query took {query_end - query_start:.4f} seconds")
 
             doc_creation_start = time.time()
             if result is not None and len(result.ids[0]) > 0:
-                print(f"  - Found {len(result.ids[0])} existing documents in vector DB")
+                print(f"[DEBUG]  - Found {len(result.ids[0])} existing documents in vector DB")
                 docs = [
                     Document(
                         page_content=result.documents[0][idx],
@@ -1018,7 +1018,7 @@ def process_file(
                 # Assuming text_content should be derived from these docs if needed later
                 text_content = " ".join([doc.page_content for doc in docs])
             else:
-                print("  - No existing documents found in vector DB, using file.data.content")
+                print("[DEBUG]  - No existing documents found in vector DB, using file.data.content")
                 docs = [
                     Document(
                         page_content=file.data.get("content", ""),
@@ -1033,19 +1033,19 @@ def process_file(
                 ]
                 text_content = file.data.get("content", "")
             doc_creation_end = time.time()
-            print(f"  - Document creation/retrieval took {doc_creation_end - doc_creation_start:.4f} seconds")
+            print(f"[DEBUG]  - Document creation/retrieval took {doc_creation_end - doc_creation_start:.4f} seconds")
 
         else:
-            print("Processing based on file path (loading content)")
+            print("[DEBUG] Processing based on file path (loading content)")
             # Process the file and save the content
             # Usage: /files/
             file_path = file.path
             if file_path:
-                print(f"  - File path found: {file_path}")
+                print(f"[DEBUG]  - File path found: {file_path}")
                 storage_get_start = time.time()
                 file_path = Storage.get_file(file_path)
                 storage_get_end = time.time()
-                print(f"  - Storage.get_file took {storage_get_end - storage_get_start:.4f} seconds")
+                print(f"[DEBUG]  - Storage.get_file took {storage_get_end - storage_get_start:.4f} seconds")
 
                 loader_init_start = time.time()
                 loader = Loader(
@@ -1057,14 +1057,14 @@ def process_file(
                     DOCUMENT_INTELLIGENCE_KEY=request.app.state.config.DOCUMENT_INTELLIGENCE_KEY,
                 )
                 loader_init_end = time.time()
-                print(f"  - Loader initialization took {loader_init_end - loader_init_start:.4f} seconds")
+                print(f"[DEBUG]  - Loader initialization took {loader_init_end - loader_init_start:.4f} seconds")
 
                 load_start = time.time()
                 loaded_docs = loader.load(
                     file.filename, file.meta.get("content_type"), file_path
                 )
                 load_end = time.time()
-                print(f"  - Loader.load took {load_end - load_start:.4f} seconds, loaded {len(loaded_docs)} documents")
+                print(f"[DEBUG]  - Loader.load took {load_end - load_start:.4f} seconds, loaded {len(loaded_docs)} documents")
 
                 doc_creation_start = time.time()
                 docs = [
@@ -1081,9 +1081,9 @@ def process_file(
                     for doc in loaded_docs
                 ]
                 doc_creation_end = time.time()
-                print(f"  - Document object creation took {doc_creation_end - doc_creation_start:.4f} seconds")
+                print(f"[DEBUG] - Document object creation took {doc_creation_end - doc_creation_start:.4f} seconds")
             else:
-                print("  - No file path found, using file.data.content")
+                print("[DEBUG]  - No file path found, using file.data.content")
                 doc_creation_start = time.time()
                 docs = [
                     Document(
@@ -1098,19 +1098,19 @@ def process_file(
                     )
                 ]
                 doc_creation_end = time.time()
-                print(f"  - Document creation from file.data took {doc_creation_end - doc_creation_start:.4f} seconds")
+                print(f"[DEBUG]  - Document creation from file.data took {doc_creation_end - doc_creation_start:.4f} seconds")
 
             content_join_start = time.time()
             text_content = " ".join([doc.page_content for doc in docs])
             content_join_end = time.time()
-        print(f"  - Joining page content took {content_join_end - content_join_start:.4f} seconds")
+        print(f" [DEBUG] - Joining page content took {content_join_end - content_join_start:.4f} seconds")
 
         step3_end = time.time()
-        print(f"Step 3: Content processing took {step3_end - step3_start:.4f} seconds. Content length: {len(text_content)} chars, Docs count: {len(docs)}")
+        print(f"[DEBUG] Step 3: Content processing took {step3_end - step3_start:.4f} seconds. Content length: {len(text_content)} chars, Docs count: {len(docs)}")
 
         # Step 4: Update file data and hash
         step4_start = time.time()
-        log.debug(f"text_content (first 100 chars): {text_content[:100]}...") # Keep debug for brevity
+        log.debug(f"[DEBUG] text_content (first 100 chars): {text_content[:100]}...") # Keep debug for brevity
 
         update_data_start = time.time()
         Files.update_file_data_by_id(
@@ -1118,25 +1118,25 @@ def process_file(
             {"content": text_content},
         )
         update_data_end = time.time()
-        print(f"Step 4a: Update file data took {update_data_end - update_data_start:.4f} seconds")
+        print(f"[DEBUG] Step 4a: Update file data took {update_data_end - update_data_start:.4f} seconds")
 
         hash_calc_start = time.time()
         hash = calculate_sha256_string(text_content)
         hash_calc_end = time.time()
-        print(f"Step 4b: Calculate SHA256 hash took {hash_calc_end - hash_calc_start:.4f} seconds. Hash: {hash}")
+        print(f"[DEBUG] Step 4b: Calculate SHA256 hash took {hash_calc_end - hash_calc_start:.4f} seconds. Hash: {hash}")
 
         update_hash_start = time.time()
         Files.update_file_hash_by_id(file.id, hash)
         update_hash_end = time.time()
-        print(f"Step 4c: Update file hash took {update_hash_end - update_hash_start:.4f} seconds")
+        print(f"[DEBUG] Step 4c: Update file hash took {update_hash_end - update_hash_start:.4f} seconds")
         step4_end = time.time()
-        print(f"Step 4: Total data and hash updates took {step4_end - step4_start:.4f} seconds")
+        print(f"[DEBUG] Step 4: Total data and hash updates took {step4_end - step4_start:.4f} seconds")
 
         # Step 5: Save to vector DB if not bypassed
         step5_start = time.time()
         final_result = {}
         if not request.app.state.config.BYPASS_EMBEDDING_AND_RETRIEVAL:
-            print("Step 5: Saving to vector DB (Embedding not bypassed)")
+            print("[DEBUG] Step 5: Saving to vector DB (Embedding not bypassed)")
             try:
                 save_start = time.time()
                 result = save_docs_to_vector_db(
@@ -1152,7 +1152,7 @@ def process_file(
                     user=user,
                 )
                 save_end = time.time()
-                print(f"  - save_docs_to_vector_db took {save_end - save_start:.4f} seconds. Result: {result}")
+                print(f"[DEBUG]  - save_docs_to_vector_db took {save_end - save_start:.4f} seconds. Result: {result}")
 
                 if result:
                     meta_update_start = time.time()
@@ -1163,7 +1163,7 @@ def process_file(
                         },
                     )
                     meta_update_end = time.time()
-                    print(f"  - Update file metadata (collection_name) took {meta_update_end - meta_update_start:.4f} seconds")
+                    print(f"[DEBUG]  - Update file metadata (collection_name) took {meta_update_end - meta_update_start:.4f} seconds")
 
                     final_result = {
                         "status": True,
@@ -1172,15 +1172,15 @@ def process_file(
                         "content": text_content, # Consider removing/truncating for large files in production logs/returns
                     }
                 else:
-                     print("  - save_docs_to_vector_db returned False/None")
+                     print("[DEBUG] - save_docs_to_vector_db returned False/None")
                      # Potentially raise an error or handle this case
-                     raise Exception("Failed to save documents to vector database")
+                     raise Exception("[DEBUG] Failed to save documents to vector database")
 
             except Exception as e:
-                print(f"  - Error during vector DB save: {e}")
+                print(f"[DEBUG] - Error during vector DB save: {e}")
                 raise e # Re-raise the exception to be caught by the outer try-except
         else:
-            print("Step 5: Bypassing embedding and retrieval")
+            print("[DEBUG][ELSE] Step 5: Bypassing embedding and retrieval")
             final_result = {
                 "status": True,
                 "collection_name": None,
@@ -1188,11 +1188,11 @@ def process_file(
                 "content": text_content, # Consider removing/truncating
             }
         step5_end = time.time()
-        print(f"Step 5: Vector DB processing/bypass took {step5_end - step5_start:.4f} seconds")
+        print(f"[DEBUG] Step 5: Vector DB processing/bypass took {step5_end - step5_start:.4f} seconds")
 
         end_time = time.time()
         total_time = end_time - start_time
-        print(f"Finished process_file for file_id: {form_data.file_id}. Total time: {total_time:.4f} seconds")
+        print(f"[DEBUG] Finished process_file for file_id: {form_data.file_id}. Total time: {total_time:.4f} seconds")
         final_result["processing_time_seconds"] = total_time # Add processing time to result
         return final_result
 
