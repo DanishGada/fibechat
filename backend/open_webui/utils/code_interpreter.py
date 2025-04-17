@@ -69,7 +69,9 @@ class JupyterCodeExecuter:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         print("[CODE-INTERPRETER] Exiting context manager.")
         start_time = time.time()
-        if self.kernel_id:
+        
+        # Don't delete the kernel if it's associated with a notebook - preserve it for future executions
+        if self.kernel_id and not self.notebook_id:
             try:
                 print(f"[CODE-INTERPRETER] Attempting to delete kernel: {self.kernel_id}")
                 delete_url = f"/api/kernels/{self.kernel_id}"
@@ -82,6 +84,9 @@ class JupyterCodeExecuter:
             except Exception as err:
                 logger.exception("close kernel failed, %s", err)
                 print(f"[CODE-INTERPRETER] Error deleting kernel {self.kernel_id}: {err}")
+        else:
+            print(f"[CODE-INTERPRETER] Preserving kernel {self.kernel_id} for notebook {self.notebook_id}")
+            
         await self.session.close()
         end_time = time.time()
         print(f"[CODE-INTERPRETER] Context manager exit took {end_time - start_time:.4f} seconds.")
@@ -247,25 +252,40 @@ class JupyterCodeExecuter:
                     sessions = await response.json()
                     print(f"[CODE-INTERPRETER] Received {len(sessions)} active sessions.")
                     
+                    # First look for running sessions associated with our notebook
                     for session in sessions:
                         # Check if 'notebook' and 'path' keys exist and match
                         if "notebook" in session and "path" in session["notebook"] and session["notebook"]["path"] == self.notebook_id:
-                             # Check if 'kernel' and 'id' keys exist
+                            # Check if 'kernel' and 'id' keys exist
                             if "kernel" in session and "id" in session["kernel"]:
-                                self.kernel_id = session["kernel"]["id"]
-                                print(f"[CODE-INTERPRETER] Found existing kernel for notebook '{self.notebook_id}'. Kernel ID: {self.kernel_id}")
-                                found_existing_kernel = True
-                                break # Exit loop once found
+                                # Check if kernel is actually alive by querying its status
+                                kernel_id = session["kernel"]["id"]
+                                print(f"[CODE-INTERPRETER] Found session with kernel {kernel_id} for notebook '{self.notebook_id}'. Checking if kernel is alive...")
+                                
+                                try:
+                                    # Verify kernel is running
+                                    async with self.session.get(
+                                        f"/api/kernels/{kernel_id}",
+                                        params=self.params
+                                    ) as kernel_response:
+                                        if kernel_response.status == 200:
+                                            kernel_data = await kernel_response.json()
+                                            if kernel_data.get("execution_state") != "dead":
+                                                self.kernel_id = kernel_id
+                                                print(f"[CODE-INTERPRETER] Verified kernel {self.kernel_id} is alive and will be reused.")
+                                                found_existing_kernel = True
+                                                break
+                                            else:
+                                                print(f"[CODE-INTERPRETER] Kernel {kernel_id} exists but is in 'dead' state. Will create a new kernel.")
+                                        else:
+                                            print(f"[CODE-INTERPRETER] Kernel {kernel_id} not found. Will create a new kernel.")
+                                except Exception as kerr:
+                                    print(f"[CODE-INTERPRETER] Error verifying kernel status: {kerr}")
                             else:
-                                print(f"[CODE-INTERPRETER] Session for '{self.notebook_id}' found, but kernel information is missing. Will create a new kernel.")
-                                break # Stop searching, proceed to create new kernel
-                        # else: # Optional: log non-matching sessions
-                        #     nb_path = session.get("notebook", {}).get("path", "N/A")
-                        #     print(f"[CODE-INTERPRETER] Checking session for notebook path: {nb_path} (doesn't match {self.notebook_id})")
-
+                                print(f"[CODE-INTERPRETER] Session for '{self.notebook_id}' found, but kernel information is missing.")
 
                     if not found_existing_kernel:
-                        print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' not found in active sessions or kernel info missing. Will create a new kernel.")
+                        print(f"[CODE-INTERPRETER] No active kernel found for notebook '{self.notebook_id}'. Will create a new kernel.")
 
             except Exception as e:
                 print(f"[CODE-INTERPRETER] Error fetching sessions or finding kernel for '{self.notebook_id}': {e}. Proceeding to create a new kernel.")
@@ -289,16 +309,16 @@ class JupyterCodeExecuter:
                     self.kernel_id = kernel_data["id"]
                     print(f"[CODE-INTERPRETER] New kernel created successfully. Kernel ID: {self.kernel_id}")
                     
-                    # Optional: If a notebook_id exists, try to create a session to link the new kernel
+                    # If a notebook_id exists, create a session to link the new kernel
                     if self.notebook_id:
-                        print(f"[CODE-INTERPRETER] Attempting to create session for notebook '{self.notebook_id}' with new kernel '{self.kernel_id}'")
+                        print(f"[CODE-INTERPRETER] Creating session for notebook '{self.notebook_id}' with new kernel '{self.kernel_id}'")
                         session_post_data = {
                             "path": self.notebook_id,
-                            "type": "notebook", # Or 'file' depending on what you need
-                            "name": "", # Optional session name
+                            "type": "notebook",
+                            "name": "",
                             "kernel": {
                                 "id": self.kernel_id,
-                                "name": "python3" # Kernel name might also be needed here
+                                "name": "python3"
                             }
                         }
                         try:
@@ -306,9 +326,9 @@ class JupyterCodeExecuter:
                             async with self.session.post(session_url, params=self.params, json=session_post_data) as session_response:
                                 session_response.raise_for_status()
                                 session_data = await session_response.json()
-                                print(f"[CODE-INTERPRETER] Session created/updated successfully for notebook '{self.notebook_id}'. Session ID: {session_data.get('id')}")
+                                print(f"[CODE-INTERPRETER] Session created successfully for notebook '{self.notebook_id}'. Session ID: {session_data.get('id')}")
                         except Exception as session_err:
-                             print(f"[CODE-INTERPRETER] Warning: Failed to create/update session for notebook '{self.notebook_id}' after creating kernel: {session_err}")
+                             print(f"[CODE-INTERPRETER] Warning: Failed to create session for notebook '{self.notebook_id}' after creating kernel: {session_err}")
                              # Continue even if session creation fails, as the kernel exists
 
             except Exception as e:
