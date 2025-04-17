@@ -190,8 +190,7 @@ def upload_file(
                 elif file.content_type not in ["image/png", "image/jpeg", "image/gif"]:
                     print(f"[DEBUG] Non-image file detected, processing")
                     process_file(request, ProcessFileForm(file_id=id), user=user)
-
-print(f"[DEBUG] Non-image file processed successfully")
+                    print(f"[DEBUG] Non-image file processed successfully")
                     file_item = Files.get_file_by_id(id=id)
                     print(f"[DEBUG] Retrieved updated file_item: {file_item.id if file_item else 'None'}")
                 else:

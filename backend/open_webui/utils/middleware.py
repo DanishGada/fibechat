@@ -1674,10 +1674,10 @@ async def process_chat_response(
                                                         response_tool_call.get("index")
                                                         == tool_call_index
                                                     ):
-                                                        current_response_tool_call = (
-                                                            response_tool_call
-                                                        )
-                                                        break
+                                                            current_response_tool_call = (
+                                                                response_tool_call
+                                                            )
+                                                            break
 
                                                 if current_response_tool_call is None:
                                                     # Add the new tool call
