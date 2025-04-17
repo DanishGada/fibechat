@@ -578,17 +578,38 @@ async def chat_completion_files_handler(
         filename = file.get('filename') or file.get('name')
         content_type = file.get('meta', {}).get('content_type', '')
         if is_spreadsheet_file(filename,content_type):
+            context_string = f"""
+            <instructions>
+            You have access to file(s) that need to be analyzed. To thoroughly examine the contents, you must write code to read and process the data. The file(s) can be accessed using the following path(s): {filename}.
 
-            joined_file_paths = ", ".join(filename)
+            When analyzing the file(s):
+            1. First inspect the file type and basic structure
+            2. Use appropriate libraries based on the file format (pandas for CSV/Excel, matplotlib/seaborn for visualization, etc.)
+            3. Explore the data systematically (check dimensions, missing values, statistical summaries)
+            4. Perform deeper analysis based on the file content and user's needs
+            5. Visualize key findings when appropriate
+            </instructions>
 
-            context_string += (
-                f"<instructions> To analyse all the contents of the file you will have to write code to read "
-                f"the contents of the file. The actual file(s) are accessible to you using the path(s): "
-                f"{joined_file_paths}. "
-            )
-            context_string += "Always write full Python code including imports, df read commands, and any other necessary code to read the file. Do not just provide snippets of code.</instructions>"
-            context_string += "Also Provide the code in the Code Interpreter tool format."
-            context_string += "<outputFiles>if the code execution gives output the files,images,etc will be accessible at '../../cache/images/{image_name}'</outputFiles>"
+            You have access to the Code Interpreter tool, which provides a Jupyter notebook environment.
+            
+            For each analysis step:
+            1. Explain what you're about to do in plain language
+            2. Provide the Python code in properly formatted code blocks
+            3. Explain the results of the code execution
+            4. Suggest next steps based on findings
+
+            <code_execution>
+            When providing code for the Code Interpreter:
+            - Use clear variable names and include comments for complex operations
+            - Structure your code logically with appropriate sections
+            - Handle potential errors and edge cases
+            - Optimize for readability and performance
+            </code_execution>
+
+            <outputFiles>
+            If the code execution generates output files such as images, plots, or processed data files, these will be accessible at '../../cache/images/{image_name}'. You can reference these files in your explanation and analysis. When generating visualizations, use appropriate titles, labels, and color schemes to maximize clarity.
+            </outputFiles>
+            """
             return body, {"sources": sources}, context_string
         queries = []
         try:
