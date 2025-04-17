@@ -34,6 +34,7 @@ class JupyterCodeExecuter:
         self,
         base_url: str,
         code: str,
+        chat_id: str = "",
         token: str = "",
         password: str = "",
         timeout: int = 60,
@@ -41,13 +42,15 @@ class JupyterCodeExecuter:
         """
         :param base_url: Jupyter server URL (e.g., "http://localhost:8888")
         :param code: Code to execute
+        :param chat_id: Identifier for the chat session (optional)
         :param token: Jupyter authentication token (optional)
         :param password: Jupyter password (optional)
         :param timeout: WebSocket timeout in seconds (default: 60s)
         """
-        print(f"[CODE-INTERPRETER] Initializing JupyterCodeExecuter for base_url: {base_url}, timeout: {timeout}")
+        print(f"[CODE-INTERPRETER] Initializing JupyterCodeExecuter for base_url: {base_url}, timeout: {timeout}, chat_id: {chat_id}")
         self.base_url = base_url.rstrip("/")
         self.code = code
+        self.chat_id = chat_id
         self.token = token
         self.password = password
         self.timeout = timeout
@@ -338,13 +341,13 @@ class JupyterCodeExecuter:
 
 
 async def execute_code_jupyter(
-    base_url: str, code: str, token: str = "", password: str = "", timeout: int = 60
+    base_url: str, chat_id: str, code: str, token: str = "", password: str = "", timeout: int = 60
 ) -> dict:
-    print(f"[CODE-INTERPRETER] execute_code_jupyter called with base_url='{base_url}', token='{token[:5]}...', password={'yes' if password else 'no'}, timeout={timeout}")
+    print(f"[CODE-INTERPRETER] execute_code_jupyter called with base_url='{base_url}', chat_id='{chat_id}', token='{token[:5]}...', password={'yes' if password else 'no'}, timeout={timeout}")
     print(f"[CODE-INTERPRETER] Code to execute:\n---\n{code}\n---")
     start_time = time.time()
     async with JupyterCodeExecuter(
-        base_url, code, token, password, timeout
+        base_url, chat_id, code, token, password, timeout
     ) as executor:
         result = await executor.run()
         final_result = result.model_dump()

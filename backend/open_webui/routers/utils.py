@@ -51,6 +51,7 @@ async def execute_code(
         output = await execute_code_jupyter(
             request.app.state.config.CODE_EXECUTION_JUPYTER_URL,
             form_data.code,
+            form_data.chat_id,
             (
                 request.app.state.config.CODE_EXECUTION_JUPYTER_AUTH_TOKEN
                 if request.app.state.config.CODE_EXECUTION_JUPYTER_AUTH == "token"
