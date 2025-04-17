@@ -577,10 +577,11 @@ async def chat_completion_files_handler(
         file = files[0]
         filename = file.get('filename') or file.get('name')
         content_type = file.get('meta', {}).get('content_type', '')
+        file_id = file.get("id")
         if is_spreadsheet_file(filename,content_type):
             context_string = f"""
             <instructions>
-            You have access to file(s) that need to be analyzed. To thoroughly examine the contents, you must write code to read and process the data. The file(s) can be accessed using the following path(s): {filename}.
+            You have access to file(s) that need to be analyzed. To thoroughly examine the contents, you must write code to read and process the data. The file(s) can be accessed using the following path(s): {file_id}_{filename}.
 
             When analyzing the file(s):
             1. First inspect the file type and basic structure
