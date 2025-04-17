@@ -1,0 +1,14 @@
+LEAN file: id='b530192c-1e9e-4ecb-8e60-0223fbe2d4a7' user_id='7b44f0d6-cae3-4ec4-98b3-a4ce9e391a7b' hash=None filename='LAI1009746506_Agreement_Mar.pdf' path='/app/backend/data/uploads/b530192c-1e9e-4ecb-8e60-0223fbe2d4a7_LAI1009746506_Agreement_Mar.pdf' data={'content': ''} meta={'name': 'LAI1009746506_Agreement_Mar.pdf', 'content_type': 'application/pdf', 'size': 335051, 'data': {}} access_control=None created_at=1744882625 updated_at=1744882625
+[DEBUG] File item created: b530192c-1e9e-4ecb-8e60-0223fbe2d4a7
+[DEBUG] Process flag is True, beginning processing
+[DEBUG] Content type for processing: application/pdf
+[DEBUG] Non-image file detected, processing
+Starting process_file for file_id: b530192c-1e9e-4ecb-8e60-0223fbe2d4a7
+Step 1: Get file by ID took 0.0006 seconds
+Collection name not provided, generated: file-b530192c-1e9e-4ecb-8e60-0223fbe2d4a7
+Step 2: Determine collection name took 0.0000 seconds
+Processing based on file path (loading content)
+  - File path found: /app/backend/data/uploads/b530192c-1e9e-4ecb-8e60-0223fbe2d4a7_LAI1009746506_Agreement_Mar.pdf
+  - Storage.get_file took 0.0000 seconds
+  - Loader initialization took 0.0000 seconds
+2025-04-17 09:37:05.827 | INFO     | uvicorn.protocols.http.httptools_impl:send:476 - 172.17.0.1:50254 - "POST /api/chat/completed HTTP/1.1" 401 - {}
