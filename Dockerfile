@@ -86,6 +86,10 @@ ENV HF_HOME="/app/backend/data/cache/embedding/models"
 ## Torch Extensions ##
 # ENV TORCH_EXTENSIONS_DIR="/.cache/torch_extensions"
 
+ENV VECTOR_DB="qdrant"
+ENV QDRANT_URI="http://10.23.7.139:6333"
+ENV QDRANT_API_KEY=""
+
 #### Other models ##########################################################
 
 WORKDIR /app/backend
