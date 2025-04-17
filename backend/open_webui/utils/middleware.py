@@ -607,7 +607,7 @@ async def chat_completion_files_handler(
             </code_execution>
 
             <outputFiles>
-            If the code execution generates output files such as images, plots, or processed data files, these will be accessible at '../../cache/images/{image_name}'. You can reference these files in your explanation and analysis. When generating visualizations, use appropriate titles, labels, and color schemes to maximize clarity.
+            If the code execution generates output files such as images, plots, or processed data files, these will be accessible at '../../cache/images/<image_name>'. You can reference these files in your explanation and analysis. When generating visualizations, use appropriate titles, labels, and color schemes to maximize clarity.
             </outputFiles>
             """
             return body, {"sources": sources}, context_string
