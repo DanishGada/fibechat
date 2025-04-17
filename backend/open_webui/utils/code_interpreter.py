@@ -51,6 +51,8 @@ class JupyterCodeExecuter:
         self.base_url = base_url.rstrip("/")
         self.code = code
         self.chat_id = chat_id
+        self.notebook_id = f"notebook-{chat_id}.ipynb" if chat_id else None # Construct notebook ID string
+        print("[CODE-INTERPRETER] self.notebook_id:", self.notebook_id)
         self.token = token
         self.password = password
         self.timeout = timeout
@@ -163,23 +165,99 @@ class JupyterCodeExecuter:
         print(f"[CODE-INTERPRETER] sign_in process finished in {end_time - start_time:.4f} seconds.")
 
     async def init_kernel(self) -> None:
-        print("[CODE-INTERPRETER] Initializing kernel.")
+        print(f"[CODE-INTERPRETER] Initializing kernel (notebook_id: {self.notebook_id}).")
         start_time = time.time()
         kernel_url = "/api/kernels"
-        try:
-            print(f"[CODE-INTERPRETER] Making API call: POST {kernel_url} with params: {self.params}")
-            async with self.session.post(
-                url=kernel_url, params=self.params
-            ) as response:
-                response.raise_for_status()
-                kernel_data = await response.json()
-                self.kernel_id = kernel_data["id"]
-                print(f"[CODE-INTERPRETER] Kernel initialized successfully. Kernel ID: {self.kernel_id}")
-        except Exception as e:
-            print(f"[CODE-INTERPRETER] Kernel initialization failed: {e}")
-            raise
+        session_url = "/api/sessions"
+        found_existing_kernel = False
+
+        if self.notebook_id:
+            print(f"[CODE-INTERPRETER] Attempting to find existing kernel for notebook: {self.notebook_id}")
+            try:
+                # Fetch kernel ID from active sessions
+                print(f"[CODE-INTERPRETER] Making API call: GET {session_url} with params: {self.params}")
+                async with self.session.get(
+                    session_url, params=self.params
+                ) as response:
+                    response.raise_for_status()
+                    sessions = await response.json()
+                    print(f"[CODE-INTERPRETER] Received {len(sessions)} active sessions.")
+                    
+                    for session in sessions:
+                        # Check if 'notebook' and 'path' keys exist and match
+                        if "notebook" in session and "path" in session["notebook"] and session["notebook"]["path"] == self.notebook_id:
+                             # Check if 'kernel' and 'id' keys exist
+                            if "kernel" in session and "id" in session["kernel"]:
+                                self.kernel_id = session["kernel"]["id"]
+                                print(f"[CODE-INTERPRETER] Found existing kernel for notebook '{self.notebook_id}'. Kernel ID: {self.kernel_id}")
+                                found_existing_kernel = True
+                                break # Exit loop once found
+                            else:
+                                print(f"[CODE-INTERPRETER] Session for '{self.notebook_id}' found, but kernel information is missing. Will create a new kernel.")
+                                break # Stop searching, proceed to create new kernel
+                        # else: # Optional: log non-matching sessions
+                        #     nb_path = session.get("notebook", {}).get("path", "N/A")
+                        #     print(f"[CODE-INTERPRETER] Checking session for notebook path: {nb_path} (doesn't match {self.notebook_id})")
+
+
+                    if not found_existing_kernel:
+                        print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' not found in active sessions or kernel info missing. Will create a new kernel.")
+
+            except Exception as e:
+                print(f"[CODE-INTERPRETER] Error fetching sessions or finding kernel for '{self.notebook_id}': {e}. Proceeding to create a new kernel.")
+                # Ensure we proceed to create a kernel if session check fails
+
+        # If no existing kernel was found OR if notebook_id was None initially, create a new kernel
+        if not found_existing_kernel:
+            print("[CODE-INTERPRETER] Creating a new kernel.")
+            try:
+                # Prepare data for creating a new kernel, potentially associating with the notebook path
+                # Note: Standard Jupyter Server API might not directly link kernel to path on creation.
+                # Often, a session needs to be created which links path and kernel.
+                # For simplicity, we create the kernel first. If association is needed,
+                # creating/updating a session might be required afterwards.
+                post_data = {"name": "python3"} # Specify kernel type, adjust if needed
+                if self.notebook_id:
+                     print(f"[CODE-INTERPRETER] Requesting new kernel (intended for notebook: {self.notebook_id})")
+                     # post_data["path"] = self.notebook_id # This field might not be standard for /api/kernels
+
+                print(f"[CODE-INTERPRETER] Making API call: POST {kernel_url} with params: {self.params} and data: {post_data}")
+                async with self.session.post(
+                    url=kernel_url, params=self.params, json=post_data # Send data as JSON
+                ) as response:
+                    response.raise_for_status()
+                    kernel_data = await response.json()
+                    self.kernel_id = kernel_data["id"]
+                    print(f"[CODE-INTERPRETER] New kernel created successfully. Kernel ID: {self.kernel_id}")
+                    
+                    # Optional: If a notebook_id exists, try to create a session to link the new kernel
+                    if self.notebook_id:
+                        print(f"[CODE-INTERPRETER] Attempting to create session for notebook '{self.notebook_id}' with new kernel '{self.kernel_id}'")
+                        session_post_data = {
+                            "path": self.notebook_id,
+                            "type": "notebook", # Or 'file' depending on what you need
+                            "name": "", # Optional session name
+                            "kernel": {
+                                "id": self.kernel_id,
+                                # "name": "python3" # Kernel name might also be needed here
+                            }
+                        }
+                        try:
+                            print(f"[CODE-INTERPRETER] Making API call: POST {session_url} with params: {self.params} and data: {session_post_data}")
+                            async with self.session.post(session_url, params=self.params, json=session_post_data) as session_response:
+                                session_response.raise_for_status()
+                                session_data = await session_response.json()
+                                print(f"[CODE-INTERPRETER] Session created/updated successfully for notebook '{self.notebook_id}'. Session ID: {session_data.get('id')}")
+                        except Exception as session_err:
+                             print(f"[CODE-INTERPRETER] Warning: Failed to create/update session for notebook '{self.notebook_id}' after creating kernel: {session_err}")
+                             # Continue even if session creation fails, as the kernel exists
+
+            except Exception as e:
+                print(f"[CODE-INTERPRETER] Kernel creation failed: {e}")
+                raise # Re-raise the exception if kernel creation fails
+
         end_time = time.time()
-        print(f"[CODE-INTERPRETER] Kernel initialization finished in {end_time - start_time:.4f} seconds.")
+        print(f"[CODE-INTERPRETER] Kernel initialization finished in {end_time - start_time:.4f} seconds. Using Kernel ID: {self.kernel_id}")
 
     def init_ws(self) -> (str, dict):
         print("[CODE-INTERPRETER] Initializing WebSocket connection details.")
