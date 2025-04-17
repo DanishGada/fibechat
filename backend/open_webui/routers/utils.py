@@ -30,7 +30,7 @@ async def get_gravatar(email: str, user=Depends(get_verified_user)):
 
 class CodeForm(BaseModel):
     code: str
-
+    chat_id: str | None = None
 
 @router.post("/code/format")
 async def format_code(form_data: CodeForm, user=Depends(get_verified_user)):
