@@ -36,6 +36,7 @@ class JupyterCodeExecuter:
             code: str,
             chat_id: str = "",
             token: str = "",
+            password: str = "",
             timeout: int = 60,
     ):
         """
@@ -43,6 +44,7 @@ class JupyterCodeExecuter:
         :param code: Code to execute
         :param chat_id: Identifier for the chat session (optional)
         :param token: Jupyter authentication token (optional)
+        :param password: Jupyter password (optional)
         :param timeout: WebSocket timeout in seconds (default: 60s)
         """
         print(
@@ -53,6 +55,7 @@ class JupyterCodeExecuter:
         self.notebook_id = f"notebook-{chat_id}.ipynb" if chat_id else None  # Construct notebook ID string
         print("[CODE-INTERPRETER] self.notebook_id:", self.notebook_id)
         self.token = token
+        self.password = password
         self.timeout = timeout
         self.kernel_id = ""
         self.session = aiohttp.ClientSession(base_url=self.base_url)
@@ -135,26 +138,264 @@ class JupyterCodeExecuter:
     async def sign_in(self) -> None:
         print("[CODE-INTERPRETER] Starting sign_in process.")
         start_time = time.time()
+        # password authentication
+        if self.password and not self.token:
+            print("[CODE-INTERPRETER] Attempting password authentication.")
+            try:
+                # Get XSRF token
+                print("[CODE-INTERPRETER] Making API call: GET /login")
+                async with self.session.get("/login") as response:
+                    response.raise_for_status()
+                    xsrf_token = response.cookies.get("_xsrf")
+                    if not xsrf_token:
+                        print("[CODE-INTERPRETER] _xsrf token not found in cookies.")
+                        raise ValueError("_xsrf token not found")
+                    xsrf_token_value = xsrf_token.value
+                    print(f"[CODE-INTERPRETER] Received _xsrf token: {xsrf_token_value}")
+                    self.session.cookie_jar.update_cookies(response.cookies)
+                    self.session.headers.update({"X-XSRFToken": xsrf_token_value})
 
+                # Post login credentials
+                login_data = {"_xsrf": xsrf_token_value, "password": self.password}
+                # Safe logging that handles different data types
+                safe_data = {}
+                for k, v in login_data.items():
+                    if k == "password":
+                        safe_data[k] = "********"  # Replace with asterisks instead of slicing
+                    else:
+                        safe_data[k] = v
+                print(f"[CODE-INTERPRETER] Making API call: POST /login with data: {safe_data}")
+
+                async with self.session.post(
+                        "/login",
+                        data=login_data,
+                        allow_redirects=False,
+                ) as response:
+                    response.raise_for_status()
+                    print("[CODE-INTERPRETER] Password authentication successful.")
+                    self.session.cookie_jar.update_cookies(response.cookies)
+            except Exception as e:
+                print(f"[CODE-INTERPRETER] Password authentication failed: {e}")
+                raise
+
+        # token authentication
         if self.token:
-            print(f"[CODE-INTERPRETER] Using token authentication. Token: ******")
+            # Safely log partial token without slicing (in case it's not a string)
+            token_display = "******" if self.token else ""
+            print(f"[CODE-INTERPRETER] Using token authentication. Token: {token_display}")
             self.params.update({"token": self.token})
 
         end_time = time.time()
         print(f"[CODE-INTERPRETER] sign_in process finished in {end_time - start_time:.4f} seconds.")
 
-    def init_ws(self) -> tuple[str, dict]:
+    async def check_or_create_notebook(self) -> Optional[str]:
+        """
+        Check if notebook exists and create it if it doesn't
+
+        Returns:
+            Path to the notebook if successful, None otherwise
+        """
+        if not self.notebook_id:
+            print("[CODE-INTERPRETER] No notebook_id specified, skipping notebook creation/check.")
+            return None
+
+        print(f"[CODE-INTERPRETER] Checking if notebook '{self.notebook_id}' exists.")
+        try:
+            # Try to get the notebook
+            async with self.session.get(
+                    f"/api/contents/{self.notebook_id}",
+                    params=self.params
+            ) as response:
+                if response.status == 200:
+                    print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' already exists.")
+                    return self.notebook_id
+                elif response.status == 404:
+                    # Create empty notebook model
+                    print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' does not exist. Creating it.")
+                    notebook_model = {
+                        "type": "notebook",
+                        "content": {
+                            "metadata": {
+                                "kernelspec": {
+                                    "name": "python3",
+                                    "display_name": "Python 3",
+                                    "language": "python"
+                                }
+                            },
+                            "nbformat": 4,
+                            "nbformat_minor": 5,
+                            "cells": []
+                        }
+                    }
+
+                    # Create the notebook
+                    async with self.session.put(
+                            f"/api/contents/{self.notebook_id}",
+                            json=notebook_model,
+                            params=self.params
+                    ) as create_response:
+                        create_response.raise_for_status()
+                        print(f"[CODE-INTERPRETER] Notebook '{self.notebook_id}' created successfully.")
+                        return self.notebook_id
+                else:
+                    print(f"[CODE-INTERPRETER] Unexpected status code when checking notebook: {response.status}")
+                    return None
+
+        except Exception as e:
+            print(f"[CODE-INTERPRETER] Error checking/creating notebook: {e}")
+            return None
+
+    async def init_kernel(self) -> None:
+        print(f"[CODE-INTERPRETER] Initializing kernel (notebook_id: {self.notebook_id}).")
+        start_time = time.time()
+        kernel_url = "/api/kernels"
+        session_url = "/api/sessions"
+        found_existing_kernel = False
+
+        if self.notebook_id:
+            print(f"[CODE-INTERPRETER] Attempting to find existing kernel for notebook: {self.notebook_id}")
+            try:
+                # Fetch kernel ID from active sessions
+                print(f"[CODE-INTERPRETER] Making API call: GET {session_url} with params: {self.params}")
+                async with self.session.get(
+                        session_url, params=self.params
+                ) as response:
+                    response.raise_for_status()
+                    sessions = await response.json()
+                    print(f"[CODE-INTERPRETER] Received {len(sessions)} active sessions.")
+
+                    # First look for running sessions associated with our notebook
+                    for session in sessions:
+                        # Check if 'notebook' and 'path' keys exist and match
+                        if "notebook" in session and "path" in session["notebook"] and session["notebook"][
+                            "path"] == self.notebook_id:
+                            # Check if 'kernel' and 'id' keys exist
+                            if "kernel" in session and "id" in session["kernel"]:
+                                # Check if kernel is actually alive by querying its status
+                                kernel_id = session["kernel"]["id"]
+                                print(
+                                    f"[CODE-INTERPRETER] Found session with kernel {kernel_id} for notebook '{self.notebook_id}'. Checking if kernel is alive...")
+
+                                try:
+                                    # Verify kernel is running
+                                    async with self.session.get(
+                                            f"/api/kernels/{kernel_id}",
+                                            params=self.params
+                                    ) as kernel_response:
+                                        if kernel_response.status == 200:
+                                            kernel_data = await kernel_response.json()
+                                            if kernel_data.get("execution_state") != "dead":
+                                                self.kernel_id = kernel_id
+                                                print(
+                                                    f"[CODE-INTERPRETER] Verified kernel {self.kernel_id} is alive and will be reused.")
+                                                found_existing_kernel = True
+                                                break
+                                            else:
+                                                print(
+                                                    f"[CODE-INTERPRETER] Kernel {kernel_id} exists but is in 'dead' state. Will create a new kernel.")
+                                        else:
+                                            print(
+                                                f"[CODE-INTERPRETER] Kernel {kernel_id} not found. Will create a new kernel.")
+                                except Exception as kerr:
+                                    print(f"[CODE-INTERPRETER] Error verifying kernel status: {kerr}")
+                            else:
+                                print(
+                                    f"[CODE-INTERPRETER] Session for '{self.notebook_id}' found, but kernel information is missing.")
+
+                    if not found_existing_kernel:
+                        print(
+                            f"[CODE-INTERPRETER] No active kernel found for notebook '{self.notebook_id}'. Will create a new kernel.")
+
+            except Exception as e:
+                print(
+                    f"[CODE-INTERPRETER] Error fetching sessions or finding kernel for '{self.notebook_id}': {e}. Proceeding to create a new kernel.")
+                # Ensure we proceed to create a kernel if session check fails
+
+        # If no existing kernel was found OR if notebook_id was None initially, create a new kernel
+        if not found_existing_kernel:
+            print("[CODE-INTERPRETER] Creating a new kernel.")
+            try:
+                # Prepare data for creating a new kernel, potentially associating with the notebook path
+                post_data = {"name": "python3"}  # Specify kernel type, adjust if needed
+                if self.notebook_id:
+                    print(f"[CODE-INTERPRETER] Requesting new kernel (intended for notebook: {self.notebook_id})")
+
+                print(
+                    f"[CODE-INTERPRETER] Making API call: POST {kernel_url} with params: {self.params} and data: {post_data}")
+                async with self.session.post(
+                        url=kernel_url, params=self.params, json=post_data  # Send data as JSON
+                ) as response:
+                    response.raise_for_status()
+                    kernel_data = await response.json()
+                    self.kernel_id = kernel_data["id"]
+                    print(f"[CODE-INTERPRETER] New kernel created successfully. Kernel ID: {self.kernel_id}")
+
+                    # If a notebook_id exists, create a session to link the new kernel
+                    if self.notebook_id:
+                        print(
+                            f"[CODE-INTERPRETER] Creating session for notebook '{self.notebook_id}' with new kernel '{self.kernel_id}'")
+                        session_post_data = {
+                            "path": self.notebook_id,
+                            "type": "notebook",
+                            "name": "",
+                            "kernel": {
+                                "id": self.kernel_id,
+                                "name": "python3"
+                            }
+                        }
+                        try:
+                            print(
+                                f"[CODE-INTERPRETER] Making API call: POST {session_url} with params: {self.params} and data: {session_post_data}")
+                            async with self.session.post(session_url, params=self.params,
+                                                         json=session_post_data) as session_response:
+                                session_response.raise_for_status()
+                                session_data = await session_response.json()
+                                print(
+                                    f"[CODE-INTERPRETER] Session created successfully for notebook '{self.notebook_id}'. Session ID: {session_data.get('id')}")
+                        except Exception as session_err:
+                            print(
+                                f"[CODE-INTERPRETER] Warning: Failed to create session for notebook '{self.notebook_id}' after creating kernel: {session_err}")
+                            # Continue even if session creation fails, as the kernel exists
+
+            except Exception as e:
+                print(f"[CODE-INTERPRETER] Kernel creation failed: {e}")
+                raise  # Re-raise the exception if kernel creation fails
+
+        end_time = time.time()
+        print(
+            f"[CODE-INTERPRETER] Kernel initialization finished in {end_time - start_time:.4f} seconds. Using Kernel ID: {self.kernel_id}")
+
+    def init_ws(self) -> (str, dict):
         print("[CODE-INTERPRETER] Initializing WebSocket connection details.")
         start_time = time.time()
         ws_base = self.base_url.replace("http", "ws")
         ws_params_str = "?" + "&".join([f"{key}={val}" for key, val in self.params.items()])
         websocket_url = f"{ws_base}/api/kernels/{self.kernel_id}/channels{ws_params_str if len(self.params) > 0 else ''}"
         ws_headers = {}
+        if self.password and not self.token:
+            # Extract cookies carefully
+            cookie_header = "; ".join(
+                [f"{cookie.key}={cookie.value}" for cookie in self.session.cookie_jar if cookie.key]
+            )
+            # Extract relevant headers
+            xsrf_header = self.session.headers.get("X-XSRFToken", "")
+            ws_headers = {
+                "Cookie": cookie_header,
+            }
+            if xsrf_header:
+                ws_headers["X-XSRFToken"] = xsrf_header
 
-        print("[CODE-INTERPRETER] Using token auth (or no auth) for WebSocket.")
+            # Safe logging of headers (hide cookie content)
+            safe_headers = ws_headers.copy()
+            if "Cookie" in safe_headers:
+                safe_headers["Cookie"] = "****COOKIE-HIDDEN****"
+            print(f"[CODE-INTERPRETER] Using password auth headers for WebSocket: {safe_headers}")
+        else:
+            print("[CODE-INTERPRETER] Using token auth (or no auth) for WebSocket.")
 
         end_time = time.time()
         print(f"[CODE-INTERPRETER] WebSocket URL: {websocket_url}")
+        # Don't log headers again to avoid duplication
         print(f"[CODE-INTERPRETER] WebSocket initialization details prepared in {end_time - start_time:.4f} seconds.")
         return websocket_url, ws_headers
 
