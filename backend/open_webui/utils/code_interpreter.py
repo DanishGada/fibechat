@@ -97,11 +97,11 @@ class JupyterCodeExecuter:
         total_start_time = time.time()
         try:
             # Sign in
-            # print("[CODE-INTERPRETER] Starting sign_in step.")
-            # start_time = time.time()
-            # await self.sign_in()
-            # end_time = time.time()
-            # print(f"[CODE-INTERPRETER] sign_in step finished in {end_time - start_time:.4f} seconds.")
+            print("[CODE-INTERPRETER] Starting sign_in step.")
+            start_time = time.time()
+            await self.sign_in()
+            end_time = time.time()
+            print(f"[CODE-INTERPRETER] sign_in step finished in {end_time - start_time:.4f} seconds.")
 
             # Check/create notebook
             print("[CODE-INTERPRETER] Starting check_or_create_notebook step.")
@@ -138,52 +138,18 @@ class JupyterCodeExecuter:
     async def sign_in(self) -> None:
         print("[CODE-INTERPRETER] Starting sign_in process.")
         start_time = time.time()
-        # password authentication
-        if self.password and not self.token:
-            print("[CODE-INTERPRETER] Attempting password authentication.")
-            try:
-                # Get XSRF token
-                print("[CODE-INTERPRETER] Making API call: GET /login")
-                async with self.session.get("/login") as response:
-                    response.raise_for_status()
-                    xsrf_token = response.cookies.get("_xsrf")
-                    if not xsrf_token:
-                        print("[CODE-INTERPRETER] _xsrf token not found in cookies.")
-                        raise ValueError("_xsrf token not found")
-                    xsrf_token_value = xsrf_token.value
-                    print(f"[CODE-INTERPRETER] Received _xsrf token: {xsrf_token_value}")
-                    self.session.cookie_jar.update_cookies(response.cookies)
-                    self.session.headers.update({"X-XSRFToken": xsrf_token_value})
-
-                # Post login credentials
-                login_data = {"_xsrf": xsrf_token_value, "password": self.password}
-                # Safe logging that handles different data types
-                safe_data = {}
-                for k, v in login_data.items():
-                    if k == "password":
-                        safe_data[k] = "********"  # Replace with asterisks instead of slicing
-                    else:
-                        safe_data[k] = v
-                print(f"[CODE-INTERPRETER] Making API call: POST /login with data: {safe_data}")
-
-                async with self.session.post(
-                        "/login",
-                        data=login_data,
-                        allow_redirects=False,
-                ) as response:
-                    response.raise_for_status()
-                    print("[CODE-INTERPRETER] Password authentication successful.")
-                    self.session.cookie_jar.update_cookies(response.cookies)
-            except Exception as e:
-                print(f"[CODE-INTERPRETER] Password authentication failed: {e}")
-                raise
 
         # token authentication
         if self.token:
             # Safely log partial token without slicing (in case it's not a string)
             token_display = "******" if self.token else ""
             print(f"[CODE-INTERPRETER] Using token authentication. Token: {token_display}")
-            self.params.update({"token": self.token})
+            self.params.update({"token": self.token}) # Adds the token here
+        else:
+            # If no token is provided, raise an error or handle as needed
+            print("[CODE-INTERPRETER] Token authentication required, but no token provided.")
+            raise ValueError("Jupyter server token is required for authentication.")
+
 
         end_time = time.time()
         print(f"[CODE-INTERPRETER] sign_in process finished in {end_time - start_time:.4f} seconds.")
