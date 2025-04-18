@@ -2096,7 +2096,6 @@ async def process_chat_response(
                                     output = await execute_code_jupyter(
                                         request.app.state.config.CODE_INTERPRETER_JUPYTER_URL,
                                         metadata["chat_id"],
-,
                                         code,
                                         (
                                             request.app.state.config.CODE_INTERPRETER_JUPYTER_AUTH_TOKEN
