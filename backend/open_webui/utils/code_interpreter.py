@@ -603,7 +603,7 @@ class JupyterCodeExecuter:
 
 
 async def execute_code_jupyter(
-        base_url: str, chat_id: str, code: str, token: str = "sample_token_123", password: str = "", timeout: int = 60
+        base_url: str, chat_id: str, code: str, token: str = "", password: str = "", timeout: int = 60
 ) -> dict:
     print(
         f"[CODE-INTERPRETER] execute_code_jupyter called with base_url='{base_url}', chat_id='{chat_id}', token='{token[:5] if token else ''}...', password={'yes' if password else 'no'}, timeout={timeout}")
