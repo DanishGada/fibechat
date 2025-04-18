@@ -138,6 +138,9 @@ class JupyterCodeExecuter:
     async def sign_in(self) -> None:
         print("[CODE-INTERPRETER] Starting sign_in process.")
         start_time = time.time()
+        if not self.token:
+            print("[CODE-INTERPRETER] No token provided, using password authentication.")
+            self.token = "sample_token_123"  # Replace with actual token retrieval logic
 
         # token authentication
         if self.token:
