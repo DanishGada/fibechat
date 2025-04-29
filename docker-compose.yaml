@@ -9,7 +9,7 @@ services:
     container_name: open-webui
     volumes:
       - open-webui:/app/backend/data
-      - /var/lib/docker/volumes/open-webui/_data/mnt/data:/mnt/data
+      - image-server-volume:/mnt/data
       - ./backend:/app/backend
     ports:
       - ${OPEN_WEBUI_PORT-3000}:8080
@@ -31,3 +31,4 @@ services:
 
 volumes:
   open-webui: {}
+  image-server-volume: {}
