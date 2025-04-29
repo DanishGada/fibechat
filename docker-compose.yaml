@@ -8,8 +8,8 @@ services:
     image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
     container_name: open-webui
     volumes:
-      - open-webui:/app/backend/data
       - image-server-volume:/mnt/data
+      - open-webui:/app/backend/data
       - ./backend:/app/backend
     ports:
       - ${OPEN_WEBUI_PORT-3000}:8080
